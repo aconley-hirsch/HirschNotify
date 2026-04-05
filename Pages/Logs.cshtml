@@ -1,0 +1,102 @@
+@page
+@model EventAlertService.Pages.LogsModel
+@{
+    ViewData["Title"] = "Logs";
+}
+
+<style>
+    .log-controls {
+        display: flex;
+        gap: 0.75rem;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+    .log-controls label { display: inline; margin: 0; }
+    .log-controls select, .log-controls input {
+        width: auto;
+        padding: 0.35rem 0.6rem;
+        font-size: 0.85rem;
+    }
+    .log-viewer {
+        background: #0a1420;
+        color: #d2e5ef;
+        padding: 1rem;
+        border-radius: var(--radius-md);
+        font-family: "IBM Plex Mono", "SF Mono", monospace;
+        font-size: 0.78rem;
+        line-height: 1.5;
+        max-height: 70vh;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        word-break: break-all;
+        margin: 0;
+    }
+    .log-viewer span { display: block; padding: 0.05rem 0; }
+    .log-error { color: #ff6b6b; }
+    .log-warn { color: #ffd43b; }
+    .log-info { color: #a6e6bc; }
+    .log-debug { color: #94aab6; }
+    .log-line { color: #d2e5ef; }
+    .log-auto-scroll {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+    }
+    .log-auto-scroll input { width: auto; margin: 0; }
+</style>
+
+<div class="log-controls">
+    <label for="logLevel">Level:</label>
+    <select id="logLevel" onchange="refreshLogs()">
+        <option value="">All</option>
+        <option value="ERR">Errors</option>
+        <option value="WRN">Warnings</option>
+        <option value="INF">Info</option>
+        <option value="DBG">Debug</option>
+    </select>
+
+    <label for="logLines">Lines:</label>
+    <select id="logLines" onchange="refreshLogs()">
+        <option value="100">100</option>
+        <option value="200" selected>200</option>
+        <option value="500">500</option>
+        <option value="1000">1000</option>
+    </select>
+
+    <label class="log-auto-scroll">
+        <input type="checkbox" id="autoRefresh" checked />
+        Auto-refresh (3s)
+    </label>
+
+    <button type="button" onclick="refreshLogs()" class="outline">Refresh</button>
+</div>
+
+<div id="logContent"
+     hx-get="/Logs?handler=Tail&lines=200"
+     hx-trigger="load, every 3s[document.getElementById('autoRefresh').checked]"
+     hx-swap="innerHTML">
+    <p class="text-muted-msg">Loading logs...</p>
+</div>
+
+@section Scripts {
+<script>
+    function refreshLogs() {
+        var level = document.getElementById('logLevel').value;
+        var lines = document.getElementById('logLines').value;
+        var content = document.getElementById('logContent');
+        var url = `/Logs?handler=Tail&lines=${lines}` + (level ? `&level=${level}` : '');
+        content.setAttribute('hx-get', url);
+        htmx.ajax('GET', url, '#logContent');
+    }
+
+    // Auto-scroll to bottom after updates
+    document.body.addEventListener('htmx:afterSwap', function(evt) {
+        if (evt.detail.target.id === 'logContent') {
+            var viewer = evt.detail.target.querySelector('.log-viewer');
+            if (viewer) viewer.scrollTop = viewer.scrollHeight;
+        }
+    });
+</script>
+}

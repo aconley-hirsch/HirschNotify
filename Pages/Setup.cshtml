@@ -1,0 +1,29 @@
+@page
+@model EventAlertService.Pages.SetupModel
+@{
+    ViewData["Title"] = "Initial Setup";
+    Layout = "_Layout";
+}
+
+<div class="login-container">
+    <h2>Create Admin Account</h2>
+    <p>Welcome! Create your admin account to get started.</p>
+
+    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <div class="flash-error">@Model.ErrorMessage</div>
+    }
+
+    <form method="post">
+        <label for="username">Username</label>
+        <input type="text" id="username" name="Username" required autofocus />
+
+        <label for="password">Password</label>
+        <input type="password" id="password" name="Password" required />
+
+        <label for="confirmPassword">Confirm Password</label>
+        <input type="password" id="confirmPassword" name="ConfirmPassword" required />
+
+        <button type="submit">Create Account</button>
+    </form>
+</div>

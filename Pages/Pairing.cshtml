@@ -1,0 +1,119 @@
+@page
+@model EventAlertService.Pages.PairingModel
+@{
+    ViewData["Title"] = "Device Pairing";
+}
+
+@if (TempData["Success"] is string msg)
+{
+    <div class="flash-success">@msg</div>
+}
+@if (TempData["Error"] is string err)
+{
+    <div class="flash-error">@err</div>
+}
+
+@if (!Model.IsRegistered)
+{
+    <article>
+        <p>This instance is not registered with a push relay. Go to <a asp-page="/Settings">Settings</a> to register first.</p>
+    </article>
+}
+else
+{
+    <p><strong>Instance:</strong> @Model.InstanceName</p>
+
+    <fieldset>
+        <legend>Generate Pairing Code</legend>
+        <form method="post" asp-page-handler="GenerateCode">
+            <div class="form-grid-2col">
+                <div>
+                    <label for="label">Label (optional)</label>
+                    <input type="text" id="label" name="label" placeholder="Dave's iPhone" />
+                </div>
+                <div>
+                    <label>&nbsp;</label>
+                    <button type="submit">Generate Code</button>
+                </div>
+            </div>
+        </form>
+    </fieldset>
+
+    @if (Model.ActiveCode != null)
+    {
+        <article>
+            <header>Pairing Code</header>
+            <p class="code-display">@Model.ActiveCode.Code</p>
+            <p class="text-center">Expires: @Model.ActiveCode.ExpiresAt.ToLocalTime().ToString("h:mm:ss tt")</p>
+            <p><small>Enter this code in the mobile app to pair a device with this instance.</small></p>
+        </article>
+    }
+
+    <fieldset>
+        <legend>Paired Devices</legend>
+
+        @if (Model.Devices.Count == 0)
+        {
+            <p>No devices paired yet. Generate a pairing code and enter it in the mobile app.</p>
+        }
+        else
+        {
+            <table>
+                <thead>
+                    <tr>
+                        <th>Label</th>
+                        <th>Platform</th>
+                        <th>Paired</th>
+                        <th>Last Seen</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var device in Model.Devices)
+                    {
+                        <tr>
+                            <td>@(device.Label ?? "—")</td>
+                            <td>@device.Platform</td>
+                            <td>@device.PairedAt.ToLocalTime().ToString("M/d/yyyy")</td>
+                            <td>@FormatTimeAgo(device.LastSeen)</td>
+                            <td>
+                                @if (device.Stale)
+                                {
+                                    <mark class="mark-danger">Stale</mark>
+                                }
+                                else
+                                {
+                                    <mark>Active</mark>
+                                }
+                            </td>
+                            <td>
+                                <div class="actions-cell">
+                                    <form method="post" asp-page-handler="TestDevice" class="form-inline">
+                                        <input type="hidden" name="deviceId" value="@device.DeviceId" />
+                                        <button type="submit" class="btn-sm outline">Test</button>
+                                    </form>
+                                    <form method="post" asp-page-handler="RevokeDevice" class="form-inline" onclick="return confirm('Revoke this device?')">
+                                        <input type="hidden" name="deviceId" value="@device.DeviceId" />
+                                        <button type="submit" class="btn-sm btn-danger">Revoke</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </fieldset>
+}
+
+@functions {
+    string FormatTimeAgo(DateTime time)
+    {
+        var diff = DateTime.UtcNow - time;
+        if (diff.TotalMinutes < 1) return "just now";
+        if (diff.TotalMinutes < 60) return $"{(int)diff.TotalMinutes} min ago";
+        if (diff.TotalHours < 24) return $"{(int)diff.TotalHours} hr ago";
+        return $"{(int)diff.TotalDays} days ago";
+    }
+}

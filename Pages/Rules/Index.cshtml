@@ -1,0 +1,76 @@
+@page
+@model EventAlertService.Pages.Rules.IndexModel
+@{
+    ViewData["Title"] = "Filter Rules";
+}
+
+@section PageActions {
+    <a href="/Rules/Edit" role="button">+ New Rule</a>
+}
+
+@if (TempData["Success"] is string msg)
+{
+    <div class="flash-success">@msg</div>
+}
+
+@foreach (var rule in Model.Rules)
+{
+    <div class="rule-card">
+        <div class="rule-header">
+            <div>
+                <strong>
+                    <span class="status-badge @(rule.IsActive ? "status-connected" : "status-disconnected")">
+                        @(rule.IsActive ? "Active" : "Inactive")
+                    </span>
+                    @rule.Name
+                </strong>
+            </div>
+            <div class="actions-cell">
+                <a href="/Rules/Edit?id=@rule.Id" class="btn-sm">Edit</a>
+                <form method="post" asp-page-handler="ToggleActive" class="form-inline">
+                    <input type="hidden" name="id" value="@rule.Id" />
+                    <button type="submit" class="btn-sm outline">@(rule.IsActive ? "Deactivate" : "Activate")</button>
+                </form>
+                <form method="post" asp-page-handler="Delete" class="form-inline" onsubmit="return confirm('Delete this rule?');">
+                    <input type="hidden" name="id" value="@rule.Id" />
+                    <button type="submit" class="btn-sm btn-danger">Delete</button>
+                </form>
+            </div>
+        </div>
+        <div class="rule-meta">
+            @{
+                var conditionSummary = string.Join(
+                    $" {rule.LogicOperator} ",
+                    rule.Conditions.OrderBy(c => c.SortOrder).Select(c => $"{c.FieldPath} {c.Operator} \"{c.Value}\""));
+            }
+            <div>@conditionSummary</div>
+            <div>
+                @{
+                    var groups = rule.FilterRuleRecipientGroups.Select(fg => fg.RecipientGroup.Name).ToList();
+                    var recipients = rule.FilterRuleRecipients.Select(fr => fr.Recipient.Name).ToList();
+                    var targets = new List<string>();
+                    if (groups.Any()) targets.AddRange(groups.Select(g => $"[{g}]"));
+                    targets.AddRange(recipients);
+                }
+                @if (targets.Any())
+                {
+                    <span>To: @string.Join(", ", targets)</span>
+                }
+                else
+                {
+                    <span>No recipients assigned</span>
+                }
+                | Throttle: max @rule.ThrottleMaxSms / @rule.ThrottleWindowMinutes min
+            </div>
+            @if (!string.IsNullOrEmpty(rule.MessageTemplate))
+            {
+                <div><em>Template: @rule.MessageTemplate</em></div>
+            }
+        </div>
+    </div>
+}
+
+@if (!Model.Rules.Any())
+{
+    <p>No filter rules yet. <a href="/Rules/Edit">Create one</a>.</p>
+}

@@ -1,0 +1,102 @@
+@page
+@model EventAlertService.Pages.Recipients.IndexModel
+@{
+    ViewData["Title"] = "Recipients";
+}
+
+@section PageActions {
+<div x-data="recipientPage" class="actions-cell">
+    <div class="bulk-bar" x-show="selected.length > 0" x-cloak>
+        <span class="bulk-count" x-text="selected.length + ' selected'"></span>
+        <form method="post" asp-page-handler="BulkActivate" class="form-inline"
+              x-on:submit="injectIds($el)">
+            <button type="submit" class="btn-sm outline">Activate</button>
+        </form>
+        <form method="post" asp-page-handler="BulkDeactivate" class="form-inline"
+              x-on:submit="injectIds($el)">
+            <button type="submit" class="btn-sm outline">Deactivate</button>
+        </form>
+        <form method="post" asp-page-handler="BulkDelete" class="form-inline"
+              x-on:submit="if(!confirm('Delete selected?')){$event.preventDefault();return;} injectIds($el)">
+            <button type="submit" class="btn-sm btn-danger">Delete</button>
+        </form>
+    </div>
+    <a href="/Recipients/Edit" role="button">+ New Recipient</a>
+</div>
+}
+
+@if (TempData["Success"] is string msg)
+{
+    <div class="flash-success">@msg</div>
+}
+@if (TempData["Error"] is string err)
+{
+    <div class="flash-error">@err</div>
+}
+
+@if (Model.PairingCode != null)
+{
+    <article>
+        <header>Pairing Code for @Model.PairingRecipientName</header>
+        <p class="code-display">@Model.PairingCode.Code</p>
+        <p class="text-center">Expires: @Model.PairingCode.ExpiresAt.ToLocalTime().ToString("h:mm:ss tt")</p>
+        <p><small>Enter this code in the Hirsch Notify mobile app to pair a device for @Model.PairingRecipientName.</small></p>
+    </article>
+}
+
+<div class="recipient-grid">
+    @foreach (var r in Model.Recipients)
+    {
+        var device = Model.GetDeviceForRecipient(r.Id);
+        <div class="recipient-card @(r.IsActive ? "" : "inactive")">
+            <div class="recipient-card-select">
+                <input type="checkbox" value="@r.Id" x-data x-on:change="
+                    let store = Alpine.$data(document.querySelector('[x-data=recipientPage]'));
+                    if ($el.checked) { store.selected.push($el.value); } else { store.selected = store.selected.filter(v => v !== $el.value); }
+                " />
+            </div>
+            <a href="/Recipients/Edit?id=@r.Id" class="recipient-card-body">
+                <div class="recipient-card-header">
+                    <span class="recipient-name">@r.Name</span>
+                    <span class="status-badge @(r.IsActive ? "status-connected" : "status-disconnected")">
+                        @(r.IsActive ? "Active" : "Inactive")
+                    </span>
+                </div>
+                <div class="recipient-card-channels">
+                    @if (device != null)
+                    {
+                        <span class="channel-tag channel-paired">@device.Platform paired</span>
+                    }
+                    else
+                    {
+                        <span class="channel-tag channel-unpaired">Not paired</span>
+                    }
+                </div>
+            </a>
+        </div>
+    }
+</div>
+
+@if (!Model.Recipients.Any())
+{
+    <p>No recipients yet. <a href="/Recipients/Edit">Create one</a>.</p>
+}
+
+@section Scripts {
+<script>
+document.addEventListener('alpine:init', () => {
+    Alpine.data('recipientPage', () => ({
+        selected: [],
+        injectIds(form) {
+            this.selected.forEach(id => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'ids';
+                input.value = id;
+                form.appendChild(input);
+            });
+        }
+    }));
+});
+</script>
+}

@@ -1,0 +1,71 @@
+@page
+@model EventAlertService.Pages.Groups.IndexModel
+@{
+    ViewData["Title"] = "Groups";
+}
+
+@section PageActions {
+<div x-data="groupPage" class="actions-cell">
+    <div class="bulk-bar" x-show="selected.length > 0" x-cloak>
+        <span class="bulk-count" x-text="selected.length + ' selected'"></span>
+        <form method="post" asp-page-handler="BulkDelete" class="form-inline"
+              x-on:submit="if(!confirm('Delete selected groups?')){$event.preventDefault();return;} injectIds($el)">
+            <button type="submit" class="btn-sm btn-danger">Delete</button>
+        </form>
+    </div>
+    <a href="/Groups/Edit" role="button">+ New Group</a>
+</div>
+}
+
+@if (TempData["Success"] is string msg)
+{
+    <div class="flash-success">@msg</div>
+}
+
+<div class="recipient-grid">
+    @foreach (var g in Model.Groups)
+    {
+        <div class="recipient-card">
+            <div class="recipient-card-select">
+                <input type="checkbox" value="@g.Id" x-data x-on:change="
+                    let store = Alpine.$data(document.querySelector('[x-data=groupPage]'));
+                    if ($el.checked) { store.selected.push($el.value); } else { store.selected = store.selected.filter(v => v !== $el.value); }
+                " />
+            </div>
+            <a href="/Groups/Edit?id=@g.Id" class="recipient-card-body">
+                <div class="recipient-card-header">
+                    <span class="recipient-name">@g.Name</span>
+                    <span class="channel-tag">@g.Members.Count member@(g.Members.Count != 1 ? "s" : "")</span>
+                </div>
+                @if (!string.IsNullOrEmpty(g.Description))
+                {
+                    <p style="margin:0; font-size:0.82rem; color:var(--text-muted);">@g.Description</p>
+                }
+            </a>
+        </div>
+    }
+</div>
+
+@if (!Model.Groups.Any())
+{
+    <p>No groups yet. <a href="/Groups/Edit">Create one</a>.</p>
+}
+
+@section Scripts {
+<script>
+document.addEventListener('alpine:init', () => {
+    Alpine.data('groupPage', () => ({
+        selected: [],
+        injectIds(form) {
+            this.selected.forEach(id => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'ids';
+                input.value = id;
+                form.appendChild(input);
+            });
+        }
+    }));
+});
+</script>
+}

@@ -1,0 +1,463 @@
+@page
+@model EventAlertService.Pages.SettingsModel
+@{
+    ViewData["Title"] = "Settings";
+    var isVelocity = Model.Get("EventSource:Mode", "WebSocket") == "VelocityAdapter";
+}
+
+<style>
+    /* ── Settings Layout ─────────────────────────── */
+    .settings-wrap {
+        display: flex;
+        gap: 2.5rem;
+        align-items: flex-start;
+    }
+
+    /* Secondary sidebar nav */
+    .settings-nav {
+        position: sticky;
+        top: 1rem;
+        align-self: flex-start;
+        min-width: 180px;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        padding-top: 0.5rem;
+    }
+    .settings-nav a {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 0.75rem;
+        border-radius: var(--radius-sm);
+        font-size: 0.85rem;
+        font-weight: 500;
+        color: var(--text-secondary);
+        transition: all 0.15s var(--ease);
+        text-decoration: none;
+    }
+    .settings-nav a:hover { background: rgba(0, 165, 153, 0.08); color: var(--text); }
+    .settings-nav a.active { background: rgba(0, 165, 153, 0.12); color: var(--electric-teal); font-weight: 600; }
+    .settings-nav a svg { flex-shrink: 0; opacity: 0.6; }
+    .settings-nav a:hover svg, .settings-nav a.active svg { opacity: 1; }
+    .settings-nav .nav-divider { height: 1px; background: var(--border-subtle); margin: 0.5rem 0; }
+
+    /* Main content area */
+    .settings-content { flex: 1; min-width: 0; }
+
+    /* Settings section: title on left, card on right */
+    .settings-section {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+        gap: 2rem;
+        padding: 2rem 0;
+        border-bottom: 1px solid var(--border-subtle);
+        scroll-margin-top: 1rem;
+    }
+    .settings-section:first-of-type { padding-top: 0.5rem; }
+    .settings-section:last-of-type { border-bottom: none; }
+
+    .settings-section-header h2 {
+        font-size: 1rem;
+        font-weight: 650;
+        margin: 0 0 0.35rem;
+        color: var(--text);
+    }
+    .settings-section-header p {
+        font-size: 0.85rem;
+        color: var(--text-muted);
+        margin: 0;
+        line-height: 1.5;
+    }
+
+    /* Card container */
+    .settings-card {
+        background: var(--surface);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-xs);
+        overflow: hidden;
+    }
+    .settings-card-body { padding: 1.5rem; }
+    .settings-card-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.75rem;
+        padding: 0.75rem 1.5rem;
+        border-top: 1px solid var(--border-subtle);
+        background: var(--surface-hover);
+    }
+
+    /* 12-column grid inside cards */
+    .field-grid {
+        display: grid;
+        grid-template-columns: repeat(12, minmax(0, 1fr));
+        gap: 1.25rem 1rem;
+    }
+    .field { display: flex; flex-direction: column; }
+    .col-3 { grid-column: span 3; }
+    .col-4 { grid-column: span 4; }
+    .col-5 { grid-column: span 5; }
+    .col-6 { grid-column: span 6; }
+    .col-8 { grid-column: span 8; }
+    .col-9 { grid-column: span 9; }
+    .col-12 { grid-column: span 12; }
+
+    /* Tighter form fields inside cards */
+    .settings-card label {
+        display: block;
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: var(--text);
+        margin-bottom: 0.4rem;
+    }
+    .settings-card input,
+    .settings-card select,
+    .settings-card textarea {
+        width: 100%;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.88rem;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        background: var(--surface);
+        color: var(--text);
+        transition: all 0.15s var(--ease);
+    }
+    .settings-card input:focus,
+    .settings-card select:focus,
+    .settings-card textarea:focus {
+        outline: none;
+        border-color: var(--electric-teal);
+        box-shadow: 0 0 0 3px rgba(0, 165, 153, 0.12);
+    }
+    .settings-card small {
+        display: block;
+        color: var(--text-muted);
+        font-size: 0.78rem;
+        margin-top: 0.35rem;
+    }
+    .settings-card details {
+        grid-column: span 12;
+        margin-top: 0.5rem;
+        padding-top: 1rem;
+        border-top: 1px dashed var(--border-subtle);
+    }
+    .settings-card details summary {
+        cursor: pointer;
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: var(--text-secondary);
+        margin-bottom: 0.75rem;
+    }
+    .settings-card details[open] summary { margin-bottom: 1rem; }
+    .settings-card details .field-grid { padding-top: 0.5rem; }
+
+    /* Stacked layout for mobile / small screens */
+    @@media (max-width: 900px) {
+        .settings-section { grid-template-columns: 1fr; gap: 1rem; padding: 1.5rem 0; }
+        .settings-nav { display: none; }
+        .col-3, .col-4, .col-5, .col-6, .col-8, .col-9 { grid-column: span 12; }
+    }
+
+    /* Inline registered card */
+    .registered-status {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.75rem 1rem;
+        background: rgba(146, 212, 0, 0.08);
+        border: 1px solid rgba(146, 212, 0, 0.25);
+        border-radius: var(--radius-sm);
+        margin-bottom: 1rem;
+    }
+    .registered-status dl { display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 0.75rem; font-size: 0.82rem; margin: 0; }
+    .registered-status dt { color: var(--text-muted); font-weight: 600; }
+    .registered-status dd { color: var(--text); margin: 0; font-family: "IBM Plex Mono", monospace; font-size: 0.78rem; }
+</style>
+
+@if (TempData["Success"] is string msg)
+{
+    <div class="flash-success">@msg</div>
+}
+@if (TempData["Error"] is string err)
+{
+    <div class="flash-error">@err</div>
+}
+
+<div class="settings-wrap">
+    <nav class="settings-nav" id="settingsNav">
+        <a href="#general" class="active">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            General
+        </a>
+        <a href="#eventsource">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            Event Source
+        </a>
+        <a href="#websocket" id="navWebSocket" style="@(isVelocity ? "display:none" : "")">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/></svg>
+            WebSocket
+        </a>
+        <div class="nav-divider"></div>
+        <a href="#relay">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+            Push Relay
+        </a>
+        <div class="nav-divider"></div>
+        <a href="#actions">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            Actions
+        </a>
+    </nav>
+
+    <div class="settings-content">
+        <form method="post">
+
+            <!-- General -->
+            <section id="general" class="settings-section">
+                <div class="settings-section-header">
+                    <h2>General</h2>
+                    <p>Identity and health monitoring settings for this service instance.</p>
+                </div>
+                <div class="settings-card">
+                    <div class="settings-card-body">
+                        <div class="field-grid">
+                            <div class="field col-8">
+                                <label for="serviceName">Service Name</label>
+                                <input type="text" id="serviceName" name="Settings[Service:Name]" value="@Model.Get("Service:Name")" placeholder="Airport Terminal A" required />
+                                <small>Identifies this service instance in the mobile app.</small>
+                            </div>
+                            <div class="field col-4">
+                                <label for="disconnectAlert">Disconnect Alert (sec)</label>
+                                <input type="number" id="disconnectAlert" name="Settings[WebSocket:DisconnectAlertSec]" value="@Model.Get("WebSocket:DisconnectAlertSec", "120")" min="1" />
+                                <small>Alert after being disconnected this long.</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Event Source -->
+            <section id="eventsource" class="settings-section">
+                <div class="settings-section-header">
+                    <h2>Event Source</h2>
+                    <p>Configure how events are received from the access control system. Changing the mode requires a service restart.</p>
+                </div>
+                <div class="settings-card">
+                    <div class="settings-card-body">
+                        <div class="field-grid">
+                            <div class="field col-6">
+                                <label for="eventSourceMode">Mode</label>
+                                <select id="eventSourceMode" name="Settings[EventSource:Mode]">
+                                    <option value="WebSocket" selected="@(Model.Get("EventSource:Mode", "WebSocket") == "WebSocket")">WebSocket</option>
+                                    <option value="VelocityAdapter" selected="@(Model.Get("EventSource:Mode", "WebSocket") == "VelocityAdapter")">Velocity Adapter (Direct SQL)</option>
+                                </select>
+                            </div>
+
+                            <details id="velocityAdapterSection" style="@(isVelocity ? "" : "display:none")">
+                                <summary>Velocity Adapter — Advanced Override</summary>
+                                <div class="field-grid">
+                                    <div class="field col-6">
+                                        <label for="velocitySqlServer">SQL Server Instance</label>
+                                        <input type="text" id="velocitySqlServer" name="Settings[Velocity:SqlServer]" value="@Model.Get("Velocity:SqlServer")" placeholder="auto-detected from registry" />
+                                    </div>
+                                    <div class="field col-6">
+                                        <label for="velocityDatabase">Database</label>
+                                        <input type="text" id="velocityDatabase" name="Settings[Velocity:Database]" value="@Model.Get("Velocity:Database")" placeholder="auto-detected from registry" />
+                                    </div>
+                                    <div class="field col-12">
+                                        <small>Connection details are read automatically from the Velocity registry. Only set these to override.</small>
+                                    </div>
+                                </div>
+                            </details>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- WebSocket -->
+            <section id="websocket" class="settings-section" style="@(isVelocity ? "display:none" : "")">
+                <div class="settings-section-header">
+                    <h2>WebSocket Connection</h2>
+                    <p>Endpoint and authentication details for the Velocity Web API event stream.</p>
+                </div>
+                <div class="settings-card">
+                    <div class="settings-card-body">
+                        <div class="field-grid">
+                            <div class="field col-6">
+                                <label for="wsUrl">Endpoint URL</label>
+                                <input type="text" id="wsUrl" name="Settings[WebSocket:Url]" value="@Model.Get("WebSocket:Url")" placeholder="wss://example.com/events" />
+                            </div>
+                            <div class="field col-6">
+                                <label for="loginUrl">Login URL</label>
+                                <input type="text" id="loginUrl" name="Settings[WebSocket:LoginUrl]" value="@Model.Get("WebSocket:LoginUrl")" placeholder="https://example.com/auth/login" />
+                            </div>
+                            <div class="field col-4">
+                                <label for="wsUsername">Username</label>
+                                <input type="text" id="wsUsername" name="Settings[WebSocket:Username]" value="@Model.Get("WebSocket:Username")" />
+                            </div>
+                            <div class="field col-4">
+                                <label for="wsPassword">Password</label>
+                                <input type="password" id="wsPassword" name="EncryptedSettings[WebSocket:Password]" placeholder="@(string.IsNullOrEmpty(Model.Get("WebSocket:Password")) ? "" : "********")" />
+                            </div>
+                            <div class="field col-4">
+                                <label for="wsDomain">Domain</label>
+                                <input type="text" id="wsDomain" name="Settings[WebSocket:Domain]" value="@Model.Get("WebSocket:Domain")" />
+                            </div>
+                            <div class="field col-6">
+                                <label for="reconnectBase">Reconnect Base Delay (sec)</label>
+                                <input type="number" id="reconnectBase" name="Settings[WebSocket:ReconnectBaseDelaySec]" value="@Model.Get("WebSocket:ReconnectBaseDelaySec", "5")" min="1" />
+                            </div>
+                            <div class="field col-6">
+                                <label for="reconnectMax">Reconnect Max Delay (sec)</label>
+                                <input type="number" id="reconnectMax" name="Settings[WebSocket:ReconnectMaxDelaySec]" value="@Model.Get("WebSocket:ReconnectMaxDelaySec", "300")" min="1" />
+                            </div>
+
+                            <details>
+                                <summary>Advanced: Field Name Mapping</summary>
+                                <div class="field-grid">
+                                    <div class="field col-4">
+                                        <label for="usernameField">Request Username Field</label>
+                                        <input type="text" id="usernameField" name="Settings[WebSocket:UsernameField]" value="@Model.Get("WebSocket:UsernameField")" placeholder="UserName" />
+                                    </div>
+                                    <div class="field col-4">
+                                        <label for="passwordField">Request Password Field</label>
+                                        <input type="text" id="passwordField" name="Settings[WebSocket:PasswordField]" value="@Model.Get("WebSocket:PasswordField")" placeholder="Password" />
+                                    </div>
+                                    <div class="field col-4">
+                                        <label for="tokenField">Response Token Field</label>
+                                        <input type="text" id="tokenField" name="Settings[WebSocket:TokenField]" value="@Model.Get("WebSocket:TokenField")" placeholder="Token" />
+                                    </div>
+                                </div>
+                            </details>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <div style="display: flex; justify-content: flex-end; padding: 1.5rem 0;">
+                <button type="submit">Save Settings</button>
+            </div>
+        </form>
+
+        <!-- Push Relay -->
+        <section id="relay" class="settings-section">
+            <div class="settings-section-header">
+                <h2>Push Relay</h2>
+                <p>Register this service with a push relay so paired devices can receive notifications.</p>
+            </div>
+            <div class="settings-card">
+                <div class="settings-card-body">
+                    @if (Model.Get("Relay:Registered") == "true")
+                    {
+                        <div class="registered-status">
+                            <mark>Registered</mark>
+                            <dl>
+                                <dt>Service Name:</dt><dd>@Model.Get("Service:Name")</dd>
+                                <dt>Instance ID:</dt><dd>@Model.Get("Relay:InstanceId")</dd>
+                                <dt>Relay URL:</dt><dd>@Model.Get("Relay:Url")</dd>
+                            </dl>
+                        </div>
+                        <form method="post" asp-page-handler="UnregisterRelay" onsubmit="return confirm('Unregister from the push relay? All paired devices will stop receiving notifications.');">
+                            <button type="submit" class="btn-danger">Unregister from Relay</button>
+                        </form>
+                    }
+                    else
+                    {
+                        <form method="post" asp-page-handler="RegisterRelay">
+                            <div class="field-grid">
+                                <div class="field col-6">
+                                    <label for="relayUrl">Relay URL</label>
+                                    <input type="url" id="relayUrl" name="RelayUrl" value="@Model.Get("Relay:Url")" placeholder="https://relay.yourdomain.com" required />
+                                </div>
+                                <div class="field col-6">
+                                    <label for="relayRegToken">Registration Token</label>
+                                    <input type="text" id="relayRegToken" name="RegistrationToken" placeholder="rt_..." required />
+                                    <small>Get a registration token from your relay administrator.</small>
+                                </div>
+                                <div class="field col-12">
+                                    <button type="submit">Register with Relay</button>
+                                </div>
+                            </div>
+                        </form>
+                    }
+                </div>
+            </div>
+        </section>
+
+        <!-- Actions -->
+        <section id="actions" class="settings-section">
+            <div class="settings-section-header">
+                <h2>Actions</h2>
+                <p>Test the event source connection and send a test notification.</p>
+            </div>
+            <div class="settings-card">
+                <div class="settings-card-body">
+                    <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+                        @if (isVelocity)
+                        {
+                            <form method="post" asp-page-handler="TestVelocityConnection">
+                                <button type="submit" class="outline">Test Velocity Connection</button>
+                            </form>
+                        }
+                        else
+                        {
+                            <form method="post" asp-page-handler="TestConnection">
+                                <button type="submit" class="outline">Test WebSocket Connection</button>
+                            </form>
+                        }
+                        <form method="post" asp-page-handler="TestNotification">
+                            <button type="submit" class="outline">Send Test Notification</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const nav = document.getElementById('settingsNav');
+        const links = nav.querySelectorAll('a[href^="#"]');
+        const sections = document.querySelectorAll('.settings-section');
+
+        function updateActive() {
+            let current = '';
+            sections.forEach(function (section) {
+                const rect = section.getBoundingClientRect();
+                if (rect.top <= 100) current = section.id;
+            });
+            links.forEach(function (link) {
+                link.classList.toggle('active', link.getAttribute('href') === '#' + current);
+            });
+        }
+
+        links.forEach(function (link) {
+            link.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+        });
+
+        window.addEventListener('scroll', updateActive, { passive: true });
+        updateActive();
+
+        // Toggle event source sections
+        const modeSelect = document.getElementById('eventSourceMode');
+        const velocitySection = document.getElementById('velocityAdapterSection');
+        const websocketSection = document.getElementById('websocket');
+        const navWebSocket = document.getElementById('navWebSocket');
+
+        function toggleEventSource() {
+            const isVel = modeSelect.value === 'VelocityAdapter';
+            velocitySection.style.display = isVel ? '' : 'none';
+            websocketSection.style.display = isVel ? 'none' : '';
+            navWebSocket.style.display = isVel ? 'none' : '';
+        }
+        modeSelect.addEventListener('change', toggleEventSource);
+    });
+</script>
+}

@@ -1,0 +1,48 @@
+## .NET / Visual Studio build artifacts
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.pidb
+*.svclog
+*.scc
+.vs/
+.vscode/
+
+## macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+## Local database files (SQLite)
+*.db
+*.db-shm
+*.db-wal
+
+## Logs
+Logs/
+*.log
+
+## Rider / JetBrains
+.idea/
+*.sln.iml
+
+## NuGet
+*.nupkg
+.nuget/
+packages/
+
+## User-specific config and secrets
+appsettings.Development.json
+*.user
+
+## Velocity registry export (customer-specific)
+velreg.reg
+
+## Counselors working dir
+agents/counselors/
+
+## Build outputs
+publish/

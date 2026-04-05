@@ -1,0 +1,95 @@
+@page
+@model EventAlertService.Pages.Recipients.EditModel
+@{
+    ViewData["Title"] = Model.IsNew ? "New Recipient" : "Edit Recipient";
+}
+
+@if (TempData["Success"] is string msg)
+{
+    <div class="flash-success">@msg</div>
+}
+@if (!string.IsNullOrEmpty(Model.ErrorMessage))
+{
+    <div class="flash-error">@Model.ErrorMessage</div>
+}
+
+@if (Model.PairingCode != null)
+{
+    <article>
+        <header>Pairing Code</header>
+        <p class="code-display">@Model.PairingCode.Code</p>
+        <p class="text-center">Expires: @Model.PairingCode.ExpiresAt.ToLocalTime().ToString("h:mm:ss tt")</p>
+        <p><small>Enter this code in the Hirsch Notify mobile app to pair a device for this recipient.</small></p>
+    </article>
+}
+
+<form method="post">
+    <input type="hidden" name="Id" value="@Model.Recipient.Id" />
+
+    <label for="name">Name</label>
+    <input type="text" id="name" name="Name" value="@Model.Recipient.Name" required />
+
+    <label>
+        <input type="checkbox" name="IsActive" value="true" @(Model.Recipient.IsActive ? "checked" : "") />
+        Active
+    </label>
+
+    <div class="button-group top">
+        <button type="submit">@(Model.IsNew ? "Create Recipient" : "Save")</button>
+        <a href="/Recipients" role="button" class="outline">Cancel</a>
+    </div>
+</form>
+
+@if (!Model.IsNew)
+{
+    <hr />
+    <h3>Push Device</h3>
+    @if (Model.PairedDevice != null)
+    {
+        <fieldset>
+            <p><strong>Device ID:</strong> <code>@Model.PairedDevice.DeviceId</code></p>
+            <p><strong>Platform:</strong> @Model.PairedDevice.Platform</p>
+            <p><strong>Paired:</strong> @Model.PairedDevice.PairedAt.ToLocalTime().ToString("MMM d, yyyy h:mm tt")</p>
+            <p><strong>Last Seen:</strong> @Model.PairedDevice.LastSeen.ToLocalTime().ToString("MMM d, yyyy h:mm tt")</p>
+            <p><strong>Status:</strong>
+                @if (Model.PairedDevice.Stale)
+                {
+                    <mark class="mark-danger">Stale</mark>
+                }
+                else
+                {
+                    <mark>Active</mark>
+                }
+            </p>
+            <form method="post" asp-page-handler="UnpairDevice" class="form-inline"
+                  onsubmit="return confirm('Unpair this device? The user will need to re-pair with a new code.');">
+                <input type="hidden" name="deviceId" value="@Model.PairedDevice.DeviceId" />
+                <input type="hidden" name="recipientId" value="@Model.Recipient.Id" />
+                <button type="submit" class="btn-sm btn-danger">Unpair Device</button>
+            </form>
+        </fieldset>
+    }
+    else
+    {
+        <form method="post" asp-page-handler="PairDevice">
+            <input type="hidden" name="recipientId" value="@Model.Recipient.Id" />
+            <button type="submit" class="outline">Generate Pairing Code</button>
+        </form>
+    }
+
+    <hr />
+    <div class="button-group">
+        <form method="post" asp-page-handler="TestNotification" class="form-inline">
+            <input type="hidden" name="id" value="@Model.Recipient.Id" />
+            <button type="submit" class="btn-sm outline">Send Test Notification</button>
+        </form>
+        <form method="post" asp-page-handler="ToggleActive" class="form-inline">
+            <input type="hidden" name="id" value="@Model.Recipient.Id" />
+            <button type="submit" class="btn-sm outline">@(Model.Recipient.IsActive ? "Deactivate" : "Activate") Recipient</button>
+        </form>
+        <form method="post" asp-page-handler="Delete" class="form-inline" onsubmit="return confirm('Delete this recipient? This cannot be undone.');">
+            <input type="hidden" name="id" value="@Model.Recipient.Id" />
+            <button type="submit" class="btn-sm btn-danger">Delete Recipient</button>
+        </form>
+    </div>
+}

@@ -1,0 +1,56 @@
+@page
+@model EventAlertService.Pages.Groups.EditModel
+@{
+    ViewData["Title"] = Model.IsNew ? "New Group" : "Edit Group";
+}
+
+@if (TempData["Success"] is string msg)
+{
+    <div class="flash-success">@msg</div>
+}
+@if (!string.IsNullOrEmpty(Model.ErrorMessage))
+{
+    <div class="flash-error">@Model.ErrorMessage</div>
+}
+
+<form method="post">
+    <input type="hidden" name="Id" value="@Model.Group.Id" />
+
+    <label for="name">Group Name</label>
+    <input type="text" id="name" name="Name" value="@Model.Group.Name" required />
+
+    <label for="description">Description (optional)</label>
+    <input type="text" id="description" name="Description" value="@Model.Group.Description" placeholder="e.g. Security team on-call rotation" />
+
+    <fieldset>
+        <legend>Members</legend>
+        @foreach (var r in Model.AllRecipients)
+        {
+            <label>
+                <input type="checkbox" name="SelectedMemberIds" value="@r.Id"
+                       @(Model.SelectedMemberIds.Contains(r.Id) ? "checked" : "") />
+                @r.Name
+            </label>
+        }
+        @if (!Model.AllRecipients.Any())
+        {
+            <p><em>No recipients yet. <a href="/Recipients/Edit">Create one first</a>.</em></p>
+        }
+    </fieldset>
+
+    <div class="button-group top">
+        <button type="submit">@(Model.IsNew ? "Create Group" : "Save")</button>
+        <a href="/Groups" role="button" class="outline">Cancel</a>
+    </div>
+</form>
+
+@if (!Model.IsNew)
+{
+    <hr />
+    <div class="button-group">
+        <form method="post" asp-page-handler="Delete" class="form-inline" onsubmit="return confirm('Delete this group?');">
+            <input type="hidden" name="id" value="@Model.Group.Id" />
+            <button type="submit" class="btn-sm btn-danger">Delete Group</button>
+        </form>
+    </div>
+}

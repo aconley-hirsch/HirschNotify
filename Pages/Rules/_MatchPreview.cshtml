@@ -1,0 +1,109 @@
+@model EventAlertService.Pages.Rules.EditModel.TestMatchResult
+
+@* Notification preview — swapped out-of-band into #notif-preview *@
+<div id="notif-preview" hx-swap-oob="innerHTML">
+    @if (!string.IsNullOrEmpty(Model.PreviewBody))
+    {
+        <div class="notif-card">
+            <div class="notif-card-head">
+                <span class="notif-icon">🔔</span>
+                <span class="notif-title">@Model.PreviewTitle</span>
+            </div>
+            <div class="notif-body">@Model.PreviewBody</div>
+        </div>
+        <small class="notif-basis">@Model.PreviewBasis</small>
+    }
+    else
+    {
+        <p class="text-muted-msg">Preview will appear once events are available.</p>
+    }
+</div>
+
+<div class="match-panel-header">
+    <span class="match-panel-title">Recent Events</span>
+    @if (Model.HasConditions)
+    {
+        <span class="match-count-pill">
+            @Model.MatchedCount <span class="match-count-separator">/</span> @Model.TotalEvents matched
+        </span>
+    }
+    else
+    {
+        <span class="match-count-pill match-count-pill--muted">@Model.TotalEvents events</span>
+    }
+</div>
+
+@if (Model.TotalEvents == 0)
+{
+    <div class="match-panel-empty">
+        <p>No events received yet.</p>
+        <small>Matches will appear here once events start flowing from the access control system.</small>
+    </div>
+}
+else if (!Model.HasConditions)
+{
+    <div class="match-panel-empty">
+        <p>Add a condition to see what matches.</p>
+        <small>As you build your rule, the @Model.TotalEvents recent event@(Model.TotalEvents == 1 ? "" : "s") above will light up when they match.</small>
+    </div>
+
+    <div class="match-event-list">
+        @foreach (var evt in Model.Events.Take(15))
+        {
+            <div class="match-event">
+                <div class="match-event-head">
+                    <span class="match-event-source">@evt.Source</span>
+                    <span class="match-event-time">@evt.Timestamp.ToLocalTime().ToString("HH:mm:ss")</span>
+                </div>
+                <div class="match-event-preview">@evt.Preview</div>
+            </div>
+        }
+    </div>
+}
+else if (Model.MatchedCount == 0)
+{
+    <div class="match-panel-empty">
+        <p>No recent events match these conditions.</p>
+        <small>Try broadening your filter or checking field names and values.</small>
+    </div>
+}
+else
+{
+    <div class="match-event-list">
+        @foreach (var evt in Model.Events)
+        {
+            <details class="match-event @(evt.Matched ? "match-event--matched" : "match-event--dimmed")">
+                <summary class="match-event-summary">
+                    <div class="match-event-head">
+                        <span class="match-event-source">
+                            @if (evt.Matched)
+                            {
+                                <span class="match-check">✓</span>
+                            }
+                            @evt.Source
+                        </span>
+                        <span class="match-event-time">@evt.Timestamp.ToLocalTime().ToString("HH:mm:ss")</span>
+                    </div>
+                    <div class="match-event-preview">@evt.Preview</div>
+                </summary>
+                <div class="match-event-explain">
+                    @foreach (var cr in evt.ConditionResults)
+                    {
+                        <div class="explain-row @(cr.Passed ? "explain-pass" : "explain-fail")">
+                            <span class="explain-icon">@(cr.Passed ? "✓" : "✗")</span>
+                            <code>@cr.FieldPath</code>
+                            <span class="explain-op">@EventAlertService.Services.EventSchema.OperatorLabels[cr.Operator]</span>
+                            <code>@cr.ExpectedValue</code>
+                            @if (!cr.Passed)
+                            {
+                                <span class="explain-actual">
+                                    (actual: @(cr.ActualValue == null ? "not found" : $"\"{cr.ActualValue}\""))
+                                </span>
+                            }
+                        </div>
+                    }
+                </div>
+            </details>
+        }
+    </div>
+}

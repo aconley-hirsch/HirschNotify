@@ -1,0 +1,51 @@
+@page
+@model EventAlertService.Pages.IndexModel
+@{
+    ViewData["Title"] = "Dashboard";
+}
+
+<div id="dashboard-status" hx-get="/Index?handler=Status" hx-trigger="load, every 5s" hx-swap="innerHTML">
+    <div class="stats-grid stats-grid-3">
+        <div class="stat-card health-card">
+            <span class="label">Health</span>
+            <div class="health-row">
+                <span class="health-label">Event Source</span>
+                <span class="status-badge status-reconnecting">Loading...</span>
+            </div>
+            <div class="health-row">
+                <span class="health-label">Push Relay</span>
+                <span class="status-badge status-reconnecting">Loading...</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <span class="label">Events Received</span>
+            <span class="value">-</span>
+        </div>
+        <div class="stat-card">
+            <span class="label">Alerts Sent Today</span>
+            <span class="value">-</span>
+        </div>
+    </div>
+</div>
+
+<div class="dashboard-panels">
+    <div class="dashboard-panel">
+        <div class="dashboard-panel-header">
+            <h3>Recent Recipients</h3>
+            <a href="/Recipients" class="dashboard-panel-link">View all</a>
+        </div>
+        <div class="dashboard-list" id="recent-recipients" hx-get="/Index?handler=Recipients" hx-trigger="load" hx-swap="innerHTML">
+            <p class="text-muted-msg">Loading...</p>
+        </div>
+    </div>
+
+    <div class="dashboard-panel">
+        <div class="dashboard-panel-header">
+            <h3>Event Feed</h3>
+            <a href="/Rules" class="dashboard-panel-link">Manage rules</a>
+        </div>
+        <div class="dashboard-list" id="event-feed" hx-get="/Index?handler=Events" hx-trigger="load, every 3s" hx-swap="innerHTML">
+            <p class="text-muted-msg">Loading...</p>
+        </div>
+    </div>
+</div>

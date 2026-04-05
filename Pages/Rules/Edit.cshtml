@@ -1,0 +1,922 @@
+@page
+@model EventAlertService.Pages.Rules.EditModel
+@{
+    ViewData["Title"] = Model.IsNew ? "New Rule" : "Edit Rule";
+}
+
+<style>
+    .rule-editor {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 360px;
+        gap: 2rem;
+        align-items: start;
+    }
+
+    /* Preview column (notification preview + match panel) */
+    .preview-column {
+        position: sticky;
+        top: 80px;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        max-height: calc(100vh - 100px);
+    }
+
+    .notif-preview-wrap {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-sm);
+        padding: 1rem;
+        flex-shrink: 0;
+    }
+    .notif-preview-label {
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--text-muted);
+        margin-bottom: 0.6rem;
+    }
+    .notif-card {
+        background: var(--midnight);
+        border-radius: var(--radius-md);
+        padding: 0.75rem 0.85rem;
+        color: #fff;
+    }
+    .notif-card-head {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.3rem;
+    }
+    .notif-icon { font-size: 0.9rem; }
+    .notif-title {
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: var(--eco-green);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+    .notif-body {
+        font-size: 0.85rem;
+        line-height: 1.4;
+        color: rgba(255, 255, 255, 0.92);
+        white-space: pre-wrap;
+        word-break: break-word;
+    }
+    .notif-basis {
+        display: block;
+        color: var(--text-muted);
+        font-size: 0.72rem;
+        margin-top: 0.5rem;
+    }
+    .text-muted-msg { color: var(--text-muted); font-size: 0.85rem; margin: 0; }
+
+    /* Match Preview Sidebar */
+    .match-panel {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-sm);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
+    }
+
+    .match-panel-header {
+        padding: 0.85rem 1rem;
+        border-bottom: 1px solid var(--border-subtle);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: var(--surface-hover);
+        flex-shrink: 0;
+    }
+
+    .match-panel-title {
+        font-size: 0.78rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--text-muted);
+    }
+
+    .match-count-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.2rem 0.6rem;
+        border-radius: var(--radius-pill);
+        font-size: 0.74rem;
+        font-weight: 700;
+        color: #305700;
+        background: rgba(146, 212, 0, 0.15);
+        border: 1px solid rgba(146, 212, 0, 0.35);
+    }
+    .match-count-pill--muted {
+        color: var(--text-muted);
+        background: rgba(3, 30, 47, 0.04);
+        border-color: var(--border-subtle);
+    }
+    .match-count-separator { opacity: 0.5; }
+
+    .match-panel-empty {
+        padding: 1.5rem 1rem;
+        text-align: center;
+        color: var(--text-muted);
+        border-bottom: 1px solid var(--border-subtle);
+    }
+    .match-panel-empty p { margin: 0 0 0.35rem; color: var(--text-secondary); font-size: 0.9rem; }
+    .match-panel-empty small { margin-top: 0; line-height: 1.4; }
+
+    .match-event-list {
+        overflow-y: auto;
+        flex: 1;
+    }
+
+    .match-event {
+        padding: 0.65rem 1rem;
+        border-bottom: 1px solid var(--border-subtle);
+        font-size: 0.82rem;
+        transition: background 0.12s;
+    }
+    .match-event:last-child { border-bottom: none; }
+    .match-event:hover { background: var(--surface-hover); }
+
+    .match-event--matched {
+        border-left: 3px solid var(--eco-green);
+        background: rgba(146, 212, 0, 0.04);
+        padding-left: calc(1rem - 3px);
+    }
+    .match-event--matched:hover { background: rgba(146, 212, 0, 0.08); }
+
+    .match-event--dimmed { opacity: 0.5; }
+    .match-event--dimmed:hover { opacity: 1; }
+
+    .match-event-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.2rem;
+    }
+    .match-event-source {
+        font-weight: 700;
+        color: var(--text);
+        font-size: 0.78rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+    .match-check {
+        color: var(--eco-green);
+        font-weight: 900;
+    }
+    .match-event-time {
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.72rem;
+        color: var(--text-muted);
+    }
+    .match-event-preview {
+        color: var(--text-secondary);
+        font-size: 0.78rem;
+        line-height: 1.4;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+    }
+
+    /* Expandable explain view */
+    details.match-event { padding: 0; }
+    details.match-event > summary {
+        list-style: none;
+        cursor: pointer;
+        padding: 0.65rem 1rem;
+    }
+    details.match-event--matched > summary { padding-left: calc(1rem - 3px); }
+    details.match-event > summary::-webkit-details-marker { display: none; }
+    details.match-event[open] > summary { border-bottom: 1px dashed var(--border-subtle); }
+    .match-event-explain {
+        padding: 0.6rem 1rem;
+        background: rgba(3, 30, 47, 0.02);
+        font-size: 0.76rem;
+    }
+    .explain-row {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+        padding: 0.25rem 0;
+        font-family: "IBM Plex Mono", monospace;
+    }
+    .explain-row code {
+        background: rgba(0, 165, 153, 0.08);
+        padding: 0.05rem 0.35rem;
+        border-radius: 3px;
+        font-size: 0.74rem;
+    }
+    .explain-op {
+        font-family: "Manrope", sans-serif;
+        color: var(--text-muted);
+        font-style: italic;
+    }
+    .explain-icon {
+        font-weight: 900;
+        font-size: 0.85rem;
+        min-width: 14px;
+    }
+    .explain-pass .explain-icon { color: var(--eco-green); }
+    .explain-fail .explain-icon { color: #c74a56; }
+    .explain-actual {
+        color: var(--text-muted);
+        font-family: "Manrope", sans-serif;
+        font-size: 0.72rem;
+        margin-left: auto;
+    }
+
+    .match-panel-loading::after {
+        content: '';
+        display: block;
+        width: 14px; height: 14px;
+        border-radius: 50%;
+        border: 2px solid var(--border);
+        border-top-color: var(--electric-teal);
+        animation: spin 0.8s linear infinite;
+        margin: 0.5rem auto;
+    }
+    @@keyframes spin { to { transform: rotate(360deg); } }
+
+    /* AND/OR segmented control */
+    .logic-toggle {
+        display: inline-flex;
+        gap: 0.4rem;
+        margin-bottom: 0.75rem;
+    }
+    .logic-toggle-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.4rem 0.65rem 0.4rem 0.4rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        transition: all 0.15s var(--ease);
+        box-shadow: none;
+        color: var(--text-secondary);
+        font-size: 0.82rem;
+        min-width: auto;
+    }
+    .logic-toggle-btn:hover {
+        border-color: var(--electric-teal);
+        color: var(--text);
+    }
+    .logic-toggle-btn .logic-pill {
+        padding: 0.15rem 0.55rem;
+        border-radius: var(--radius-pill);
+        font-size: 0.68rem;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        background: rgba(3, 30, 47, 0.08);
+        color: var(--text-muted);
+    }
+    .logic-toggle-btn .logic-label { font-weight: 500; }
+    .logic-toggle-btn.active {
+        background: var(--surface-hover);
+        border-color: var(--electric-teal);
+        color: var(--text);
+    }
+    .logic-toggle-btn.active .logic-pill {
+        background: var(--electric-teal);
+        color: #fff;
+        box-shadow: var(--shadow-glow-teal);
+    }
+
+    /* Condition row pills */
+    .condition-row {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+        padding: 0.55rem 0.7rem;
+        margin-bottom: 0.4rem;
+        background: var(--surface-hover);
+        border: 1px solid var(--border-subtle);
+        border-left: 3px solid transparent;
+        border-radius: var(--radius-sm);
+        transition: all 0.15s var(--ease);
+    }
+    .condition-row:hover {
+        border-color: var(--border);
+        border-left-color: var(--electric-teal);
+        background: var(--surface);
+        box-shadow: var(--shadow-xs);
+    }
+    .condition-row select,
+    .condition-row input[type="text"] {
+        margin: 0;
+        padding: 0.4rem 0.55rem;
+        font-size: 0.85rem;
+    }
+    .condition-row .field-path { flex: 0 1 200px; font-family: "IBM Plex Mono", monospace; font-size: 0.8rem; }
+    .condition-row .operator { flex: 0 1 140px; }
+    .condition-row .value { flex: 1 1 auto; min-width: 0; }
+    .condition-row .btn-sm { margin: 0; }
+    .condition-row .browse-btn { margin: 0; }
+
+    /* Hide remove button until hover (like Notion) */
+    .condition-row .btn-danger {
+        opacity: 0;
+        transition: opacity 0.15s var(--ease);
+    }
+    .condition-row:hover .btn-danger,
+    .condition-row:focus-within .btn-danger {
+        opacity: 1;
+    }
+
+    /* Template chip bar */
+    .chip-bar {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        padding: 0.75rem;
+        background: var(--surface-hover);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-sm);
+        margin-bottom: 0.5rem;
+    }
+    .chip-bar-group {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.4rem;
+    }
+    .chip-bar-label {
+        font-size: 0.68rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-muted);
+        min-width: 80px;
+    }
+    .token-chip {
+        padding: 0.2rem 0.6rem;
+        font-size: 0.74rem;
+        font-family: "IBM Plex Mono", monospace;
+        font-weight: 600;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        color: var(--deep-teal);
+        cursor: pointer;
+        transition: all 0.1s var(--ease);
+        min-width: auto;
+        box-shadow: none;
+    }
+    .token-chip:hover {
+        background: var(--electric-teal);
+        border-color: var(--electric-teal);
+        color: #fff;
+    }
+    .token-chip--field { color: var(--text-secondary); }
+
+    /* JSON browser popover */
+    .json-browser-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(3, 30, 47, 0.4);
+        backdrop-filter: blur(4px);
+        z-index: 100;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .json-browser {
+        background: var(--surface);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-md);
+        width: min(600px, 90vw);
+        max-height: 80vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+    .json-browser-header {
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid var(--border-subtle);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .json-browser-header h3 { font-size: 1rem; margin: 0; }
+    .json-browser-tabs {
+        display: flex;
+        padding: 0.5rem 1rem;
+        gap: 0.4rem;
+        border-bottom: 1px solid var(--border-subtle);
+        overflow-x: auto;
+    }
+    .json-browser-tab {
+        padding: 0.3rem 0.7rem;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border-subtle);
+        background: var(--surface);
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: var(--text-secondary);
+        cursor: pointer;
+        white-space: nowrap;
+        transition: all 0.12s var(--ease);
+    }
+    .json-browser-tab:hover { border-color: var(--electric-teal); color: var(--text); }
+    .json-browser-tab.active { background: var(--electric-teal); color: #fff; border-color: var(--electric-teal); }
+    .json-browser-body {
+        padding: 1rem 1.25rem;
+        overflow-y: auto;
+        flex: 1;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.82rem;
+        line-height: 1.7;
+    }
+    .json-key {
+        cursor: pointer;
+        padding: 0.1rem 0.35rem;
+        border-radius: 4px;
+        color: var(--deep-teal);
+        font-weight: 600;
+        transition: all 0.1s var(--ease);
+    }
+    .json-key:hover {
+        background: rgba(0, 165, 153, 0.15);
+        color: var(--electric-teal);
+    }
+    .json-value { color: var(--text-secondary); }
+    .json-string { color: #3d6b00; }
+    .json-number { color: #8e2630; }
+    .json-boolean { color: #0e5965; }
+    .json-null { color: var(--text-faint); font-style: italic; }
+
+    .browse-btn {
+        padding: 0.35rem 0.5rem;
+        border: 1px solid var(--border-subtle);
+        background: var(--surface);
+        border-radius: var(--radius-sm);
+        font-size: 0.78rem;
+        cursor: pointer;
+        color: var(--text-muted);
+        transition: all 0.12s var(--ease);
+        min-width: auto;
+        box-shadow: none;
+    }
+    .browse-btn:hover {
+        color: var(--electric-teal);
+        border-color: var(--electric-teal);
+        background: rgba(0, 165, 153, 0.05);
+    }
+
+    @@media (max-width: 1100px) {
+        .rule-editor { grid-template-columns: 1fr; }
+        .preview-column { position: static; max-height: none; }
+        .match-panel { max-height: 400px; }
+    }
+</style>
+
+@if (!string.IsNullOrEmpty(Model.ErrorMessage))
+{
+    <div class="flash-error">@Model.ErrorMessage</div>
+}
+
+<script>
+// Schema: field name → type. Used client-side for operator filtering.
+const FIELD_TYPES = {
+@foreach (var f in Model.CommonFields)
+{
+    @:  '@f.Name': '@f.Type',
+}
+@foreach (var fields in Model.SourceFields.Values)
+{
+    foreach (var f in fields)
+    {
+        @:  '@f.Name': '@f.Type',
+    }
+}
+};
+
+const OPERATORS_BY_TYPE = {
+    string:   ['equals', 'not_equals', 'contains'],
+    number:   ['equals', 'not_equals', 'greater_than', 'less_than'],
+    boolean:  ['equals'],
+    datetime: ['greater_than', 'less_than']
+};
+
+const OPERATOR_LABELS = {
+@foreach (var (op, label) in Model.OperatorLabels)
+{
+    @:  '@op': '@label',
+}
+};
+
+// Filter operator <option>s based on the selected field's type
+function filterOperators(fieldSelect) {
+    const row = fieldSelect.closest('.condition-row');
+    const opSelect = row.querySelector('.operator');
+    const currentVal = opSelect.value;
+    const type = FIELD_TYPES[fieldSelect.value] || 'string';
+    const allowed = OPERATORS_BY_TYPE[type] || OPERATORS_BY_TYPE.string;
+
+    opSelect.innerHTML = '';
+    allowed.forEach(op => {
+        const o = document.createElement('option');
+        o.value = op;
+        o.textContent = OPERATOR_LABELS[op];
+        if (op === currentVal) o.selected = true;
+        opSelect.appendChild(o);
+    });
+    // If previous operator isn't valid for this type, keep the first one
+    if (!allowed.includes(currentVal)) {
+        opSelect.selectedIndex = 0;
+    }
+}
+</script>
+
+<div class="rule-editor">
+    <form method="post" id="rule-form" x-data="{ conditionCount: @Model.Conditions.Count }">
+        <input type="hidden" name="RuleId" value="@Model.RuleId" />
+
+        <label for="name">Rule Name</label>
+        <input type="text" id="name" name="Name" value="@Model.Name" required />
+
+        <label for="description">Description (optional)</label>
+        <input type="text" id="description" name="Description" value="@Model.Description" />
+
+        <label>
+            <input type="checkbox" name="IsActive" value="true" @(Model.IsActive ? "checked" : "") />
+            Active — rule will evaluate incoming events and send alerts
+        </label>
+
+        <label>Match</label>
+        <div class="logic-toggle" id="logicToggle">
+            <input type="hidden" name="LogicOperator" id="logicOperatorInput" value="@Model.LogicOperator" />
+            <button type="button" class="logic-toggle-btn @(Model.LogicOperator == "AND" ? "active" : "")"
+                    onclick="setLogic('AND')" data-value="AND">
+                <span class="logic-pill">ALL</span>
+                <span class="logic-label">of the conditions</span>
+            </button>
+            <button type="button" class="logic-toggle-btn @(Model.LogicOperator == "OR" ? "active" : "")"
+                    onclick="setLogic('OR')" data-value="OR">
+                <span class="logic-pill">ANY</span>
+                <span class="logic-label">of the conditions</span>
+            </button>
+        </div>
+
+        <fieldset>
+            <legend>Conditions</legend>
+            <div id="conditions-container">
+                @for (var i = 0; i < Model.Conditions.Count; i++)
+                {
+                    var cond = Model.Conditions[i];
+                    var listId = $"field-values-{i}";
+                    <div class="condition-row" data-condition-index="@i">
+                        <select class="field-path" name="Conditions[@i].FieldPath"
+                                onchange="filterOperators(this); fetchFieldValues(this);"
+                                hx-get="/Rules/Edit?handler=FieldValues"
+                                hx-trigger="change"
+                                hx-target="#@listId"
+                                hx-vals='js:{field: event.target.value}'>
+                            <option value="" disabled selected="@(string.IsNullOrEmpty(cond.FieldPath))">Select field…</option>
+                            <optgroup label="Common">
+                                @foreach (var f in Model.CommonFields)
+                                {
+                                    <option value="@f.Name" title="@f.Description" selected="@(cond.FieldPath == f.Name)">@f.Name</option>
+                                }
+                            </optgroup>
+                            @foreach (var (sourceName, fields) in Model.SourceFields)
+                            {
+                                <optgroup label="@sourceName">
+                                    @foreach (var f in fields)
+                                    {
+                                        <option value="@f.Name" title="@f.Description" selected="@(cond.FieldPath == f.Name)">@f.Name</option>
+                                    }
+                                </optgroup>
+                            }
+                            @if (!string.IsNullOrEmpty(cond.FieldPath) && !Model.CommonFields.Any(f => f.Name == cond.FieldPath) && !Model.SourceFields.Values.SelectMany(v => v).Any(f => f.Name == cond.FieldPath))
+                            {
+                                <option value="@cond.FieldPath" selected="selected">@cond.FieldPath (custom)</option>
+                            }
+                        </select>
+                        <select class="operator" name="Conditions[@i].Operator">
+                            @{
+                                var condType = EventAlertService.Services.EventSchema.GetFieldType(cond.FieldPath);
+                                var allowedOps = EventAlertService.Services.EventSchema.OperatorsForType(condType);
+                            }
+                            @foreach (var op in allowedOps)
+                            {
+                                <option value="@op" selected="@(cond.Operator == op)">@Model.OperatorLabels[op]</option>
+                            }
+                        </select>
+                        <input type="text" class="value" name="Conditions[@i].Value" value="@cond.Value" placeholder="Value" list="@listId" />
+                        <datalist id="@listId"></datalist>
+                        <button type="button" class="browse-btn" title="Browse recent event fields" onclick="openJsonBrowser(this)">{ }</button>
+                        <button type="button" class="btn-sm btn-danger" onclick="this.closest('.condition-row').remove(); htmx.trigger('#rule-form', 'conditions-changed');">Remove</button>
+                    </div>
+                }
+            </div>
+            <button type="button" class="outline btn-sm" onclick="addCondition()">+ Add Condition</button>
+        </fieldset>
+
+        <fieldset>
+            <legend>Message Template</legend>
+            <label for="messageTemplate">Notification message format (leave blank for default)</label>
+
+            <div class="chip-bar">
+                <div class="chip-bar-group">
+                    <span class="chip-bar-label">Built-in</span>
+                    <button type="button" class="token-chip" onclick="insertToken('ruleName')">ruleName</button>
+                    <button type="button" class="token-chip" onclick="insertToken('timestamp')">timestamp</button>
+                    <button type="button" class="token-chip" onclick="insertToken('localtime')">localtime</button>
+                </div>
+                <div class="chip-bar-group">
+                    <span class="chip-bar-label">Event fields</span>
+                    @foreach (var f in Model.CommonFields)
+                    {
+                        <button type="button" class="token-chip token-chip--field" onclick="insertToken('@f.Name')" title="@f.Description">@f.Name</button>
+                    }
+                </div>
+            </div>
+
+            <textarea id="messageTemplate" name="MessageTemplate" rows="3" placeholder="e.g. {ruleName}: {description} at {localtime}">@Model.MessageTemplate</textarea>
+            <small>Click a field above to insert it at the cursor. Nested fields use dot notation.</small>
+        </fieldset>
+
+        <div class="form-grid-2col">
+            <div>
+                <label for="throttleMax">Max alerts per window</label>
+                <input type="number" id="throttleMax" name="ThrottleMaxSms" value="@Model.ThrottleMaxSms" min="1" required />
+            </div>
+            <div>
+                <label for="throttleWindow">Window (minutes)</label>
+                <input type="number" id="throttleWindow" name="ThrottleWindowMinutes" value="@Model.ThrottleWindowMinutes" min="1" required />
+            </div>
+        </div>
+
+        @if (Model.AllGroups.Any())
+        {
+            <fieldset>
+                <legend>Recipient Groups</legend>
+                @foreach (var g in Model.AllGroups)
+                {
+                    <label>
+                        <input type="checkbox" name="SelectedGroupIds" value="@g.Id"
+                               @(Model.SelectedGroupIds.Contains(g.Id) ? "checked" : "") />
+                        @g.Name
+                        <span class="channel-tag">@g.Members.Count member@(g.Members.Count != 1 ? "s" : "")</span>
+                    </label>
+                }
+            </fieldset>
+        }
+
+        <fieldset>
+            <legend>Individual Recipients</legend>
+            @foreach (var r in Model.AllRecipients)
+            {
+                <label>
+                    <input type="checkbox" name="SelectedRecipientIds" value="@r.Id"
+                           @(Model.SelectedRecipientIds.Contains(r.Id) ? "checked" : "") />
+                    @r.Name
+                </label>
+            }
+            @if (!Model.AllRecipients.Any())
+            {
+                <p><em>No recipients yet. <a href="/Recipients/Edit">Create one first</a>.</em></p>
+            }
+        </fieldset>
+
+        <div class="button-group top">
+            <button type="submit">Save Rule</button>
+            <a href="/Rules" role="button" class="outline">Cancel</a>
+        </div>
+    </form>
+
+    <div class="preview-column">
+        <div class="notif-preview-wrap">
+            <div class="notif-preview-label">Notification Preview</div>
+            <div id="notif-preview"><p class="text-muted-msg">Preview will appear once events are available.</p></div>
+        </div>
+        <aside class="match-panel"
+               id="match-preview"
+               hx-post="/Rules/Edit?handler=TestMatch"
+               hx-trigger="load, input changed delay:300ms from:#rule-form, change delay:100ms from:#rule-form, conditions-changed from:#rule-form"
+               hx-include="[name^='Conditions'], [name='LogicOperator'], [name='MessageTemplate'], [name='Name']"
+               hx-swap="innerHTML">
+            <div class="match-panel-header">
+                <span class="match-panel-title">Recent Events</span>
+                <span class="match-count-pill match-count-pill--muted">Loading…</span>
+            </div>
+        </aside>
+    </div>
+</div>
+
+@if (!Model.IsNew)
+{
+    <form method="post" asp-page-handler="Delete" class="button-group top" onsubmit="return confirm('Delete this rule?');">
+        <input type="hidden" name="RuleId" value="@Model.RuleId" />
+        <button type="submit" class="btn-danger">Delete Rule</button>
+    </form>
+}
+
+@* JSON browser popover — shows recent events for field discovery *@
+<div id="json-browser-overlay" class="json-browser-overlay" style="display:none" onclick="if(event.target===this)closeJsonBrowser()">
+    <div class="json-browser">
+        <div class="json-browser-header">
+            <h3>Browse Recent Events</h3>
+            <button type="button" class="btn-sm outline" onclick="closeJsonBrowser()">Close</button>
+        </div>
+        <div class="json-browser-tabs" id="json-browser-tabs"></div>
+        <div class="json-browser-body" id="json-browser-body"></div>
+    </div>
+</div>
+
+<script>
+const RECENT_SAMPLES = [
+@foreach (var evt in Model.RecentSamples)
+{
+    @:  { ts: '@evt.Timestamp.ToLocalTime().ToString("HH:mm:ss")', json: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(evt.RawJson)) },
+}
+];
+let currentBrowseButton = null;
+
+function openJsonBrowser(btn) {
+    currentBrowseButton = btn;
+    const overlay = document.getElementById('json-browser-overlay');
+    const tabs = document.getElementById('json-browser-tabs');
+
+    if (RECENT_SAMPLES.length === 0) {
+        document.getElementById('json-browser-body').innerHTML =
+            '<p style="color: var(--text-muted); font-family: Manrope, sans-serif;">No recent events available yet. Waiting for events to flow through…</p>';
+        tabs.innerHTML = '';
+        overlay.style.display = 'flex';
+        return;
+    }
+
+    tabs.innerHTML = '';
+    RECENT_SAMPLES.forEach((s, i) => {
+        const tab = document.createElement('button');
+        tab.type = 'button';
+        tab.className = 'json-browser-tab' + (i === 0 ? ' active' : '');
+        try {
+            const parsed = JSON.parse(s.json);
+            tab.textContent = (parsed.source || 'Event') + ' · ' + s.ts;
+        } catch { tab.textContent = 'Event ' + (i+1); }
+        tab.onclick = () => showSample(i, tab);
+        tabs.appendChild(tab);
+    });
+
+    showSample(0, tabs.firstChild);
+    overlay.style.display = 'flex';
+}
+
+function showSample(index, tabBtn) {
+    document.querySelectorAll('.json-browser-tab').forEach(t => t.classList.remove('active'));
+    if (tabBtn) tabBtn.classList.add('active');
+
+    const body = document.getElementById('json-browser-body');
+    try {
+        const data = JSON.parse(RECENT_SAMPLES[index].json);
+        body.innerHTML = renderJson(data, '');
+    } catch (e) {
+        body.innerHTML = '<p>Invalid JSON</p>';
+    }
+}
+
+function renderJson(obj, path) {
+    if (obj === null) return '<span class="json-null">null</span>';
+    if (typeof obj !== 'object') {
+        const cls = typeof obj === 'string' ? 'json-string' :
+                    typeof obj === 'number' ? 'json-number' : 'json-boolean';
+        const display = typeof obj === 'string' ? `"${escapeHtml(obj)}"` : String(obj);
+        return `<span class="json-value ${cls}">${display}</span>`;
+    }
+
+    let html = '{<div style="padding-left: 1.25rem">';
+    for (const [key, value] of Object.entries(obj)) {
+        const fullPath = path ? `${path}.${key}` : key;
+        html += `<div><span class="json-key" onclick="pickField('${escapeAttr(fullPath)}', ${JSON.stringify(typeof value === 'string' ? value : null)})">"${escapeHtml(key)}"</span>: ${renderJson(value, fullPath)}</div>`;
+    }
+    html += '</div>}';
+    return html;
+}
+
+function pickField(fieldPath, sampleValue) {
+    if (!currentBrowseButton) return;
+    const row = currentBrowseButton.closest('.condition-row');
+    const fieldSelect = row.querySelector('.field-path');
+
+    // Check if the path exists in the dropdown; if not, add a custom option
+    let found = false;
+    for (const opt of fieldSelect.options) {
+        if (opt.value === fieldPath) { opt.selected = true; found = true; break; }
+    }
+    if (!found) {
+        const opt = document.createElement('option');
+        opt.value = fieldPath;
+        opt.textContent = fieldPath + ' (from event)';
+        opt.selected = true;
+        fieldSelect.appendChild(opt);
+    }
+
+    // Trigger change handlers to filter operators and fetch values
+    fieldSelect.dispatchEvent(new Event('change', { bubbles: true }));
+
+    // Optionally prefill the value input with the sample value
+    if (sampleValue !== null) {
+        const valueInput = row.querySelector('.value');
+        if (valueInput && !valueInput.value) {
+            valueInput.value = sampleValue;
+            valueInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+    }
+
+    closeJsonBrowser();
+}
+
+function closeJsonBrowser() {
+    document.getElementById('json-browser-overlay').style.display = 'none';
+    currentBrowseButton = null;
+}
+
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escapeAttr(s) { return String(s).replace(/['"\\]/g, '\\$&'); }
+
+// AND/OR segmented control
+function setLogic(value) {
+    document.getElementById('logicOperatorInput').value = value;
+    document.querySelectorAll('.logic-toggle-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.value === value);
+    });
+    // Trigger HTMX live-match refresh
+    htmx.trigger('#rule-form', 'conditions-changed');
+}
+
+// Insert a {token} at the cursor in the message template textarea
+function insertToken(fieldName) {
+    const ta = document.getElementById('messageTemplate');
+    const token = '{' + fieldName + '}';
+    const pos = ta.selectionStart;
+    const end = ta.selectionEnd;
+    ta.value = ta.value.slice(0, pos) + token + ta.value.slice(end);
+    ta.focus();
+    const newPos = pos + token.length;
+    ta.setSelectionRange(newPos, newPos);
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+}
+</script>
+
+@section Scripts {
+<script>
+function addCondition() {
+    const container = document.getElementById('conditions-container');
+    const index = container.querySelectorAll('.condition-row').length;
+    const template = container.querySelector('.condition-row');
+    const row = template ? template.cloneNode(true) : null;
+    if (!row) return;
+
+    // Reindex name attributes and datalist id
+    row.dataset.conditionIndex = index;
+    row.querySelectorAll('[name]').forEach(el => {
+        el.name = el.name.replace(/Conditions\[\d+\]/, `Conditions[${index}]`);
+    });
+    const newListId = `field-values-${index}`;
+    const datalist = row.querySelector('datalist');
+    if (datalist) {
+        datalist.id = newListId;
+        datalist.innerHTML = '';
+    }
+    const valueInput = row.querySelector('.value');
+    if (valueInput) valueInput.setAttribute('list', newListId);
+    const fieldSelect = row.querySelector('.field-path');
+    if (fieldSelect) fieldSelect.setAttribute('hx-target', `#${newListId}`);
+
+    // Reset values
+    fieldSelect.selectedIndex = 0;
+    row.querySelector('.operator').selectedIndex = 0;
+    valueInput.value = '';
+
+    container.appendChild(row);
+    htmx.process(row);
+    htmx.trigger('#rule-form', 'conditions-changed');
+}
+
+// Load recent values for the datalist immediately on page load (for existing conditions)
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.field-path').forEach(sel => {
+        if (sel.value) {
+            htmx.trigger(sel, 'change');
+        }
+    });
+});
+</script>
+}
