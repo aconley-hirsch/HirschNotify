@@ -1,4 +1,4 @@
-namespace EventAlertService.Services;
+namespace HirschNotify.Services;
 
 public record FieldInfo(string Name, string Type, string Description);
 

@@ -1,4 +1,4 @@
-namespace EventAlertService.Models;
+namespace HirschNotify.Models;
 
 public class Recipient
 {

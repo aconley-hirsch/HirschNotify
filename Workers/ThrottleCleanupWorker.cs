@@ -1,7 +1,7 @@
-using EventAlertService.Data;
+using HirschNotify.Data;
 using Microsoft.EntityFrameworkCore;
 
-namespace EventAlertService.Workers;
+namespace HirschNotify.Workers;
 
 public class ThrottleCleanupWorker : BackgroundService
 {

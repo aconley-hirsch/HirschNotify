@@ -1,9 +1,9 @@
-using EventAlertService.Services;
+using HirschNotify.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
-namespace EventAlertService.Pages;
+namespace HirschNotify.Pages;
 
 [Authorize]
 public class PairingModel : PageModel

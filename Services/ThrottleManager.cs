@@ -1,8 +1,8 @@
-using EventAlertService.Data;
-using EventAlertService.Models;
+using HirschNotify.Data;
+using HirschNotify.Models;
 using Microsoft.EntityFrameworkCore;
 
-namespace EventAlertService.Services;
+namespace HirschNotify.Services;
 
 public class ThrottleManager : IThrottleManager
 {

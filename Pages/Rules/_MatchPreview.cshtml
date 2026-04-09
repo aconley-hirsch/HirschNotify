@@ -1,4 +1,4 @@
-@model EventAlertService.Pages.Rules.EditModel.TestMatchResult
+@model HirschNotify.Pages.Rules.EditModel.TestMatchResult
 
 @* Notification preview — swapped out-of-band into #notif-preview *@
 <div id="notif-preview" hx-swap-oob="innerHTML">
@@ -92,7 +92,7 @@ else
                         <div class="explain-row @(cr.Passed ? "explain-pass" : "explain-fail")">
                             <span class="explain-icon">@(cr.Passed ? "✓" : "✗")</span>
                             <code>@cr.FieldPath</code>
-                            <span class="explain-op">@EventAlertService.Services.EventSchema.OperatorLabels[cr.Operator]</span>
+                            <span class="explain-op">@HirschNotify.Services.EventSchema.OperatorLabels[cr.Operator]</span>
                             <code>@cr.ExpectedValue</code>
                             @if (!cr.Passed)
                             {

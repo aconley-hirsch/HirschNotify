@@ -1,14 +1,14 @@
 using System.Net.WebSockets;
 using System.Runtime.InteropServices;
-using EventAlertService.Data;
-using EventAlertService.Services;
+using HirschNotify.Data;
+using HirschNotify.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Win32;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 
-namespace EventAlertService.Pages;
+namespace HirschNotify.Pages;
 
 [Authorize]
 public class SettingsModel : PageModel
@@ -192,7 +192,7 @@ public class SettingsModel : PageModel
         var sent = 0;
         foreach (var r in active)
         {
-            if (await _notificationSender.SendAsync(r, "Test notification from Event Alert Service."))
+            if (await _notificationSender.SendAsync(r, "Test notification from Hirsch Notify."))
                 sent++;
         }
 

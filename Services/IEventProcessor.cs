@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace EventAlertService.Services;
+namespace HirschNotify.Services;
 
 public interface IEventProcessor
 {

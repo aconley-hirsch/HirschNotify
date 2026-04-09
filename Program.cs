@@ -1,13 +1,13 @@
-using EventAlertService.Data;
-using EventAlertService.Services;
-using EventAlertService.Workers;
+using HirschNotify.Data;
+using HirschNotify.Services;
+using HirschNotify.Workers;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
-    .WriteTo.File("Logs/EventAlertService-.log", rollingInterval: RollingInterval.Day)
+    .WriteTo.File("Logs/HirschNotify-.log", rollingInterval: RollingInterval.Day)
     .CreateBootstrapLogger();
 
 try
@@ -21,7 +21,7 @@ try
         .ReadFrom.Configuration(context.Configuration)
         .ReadFrom.Services(services)
         .WriteTo.Console()
-        .WriteTo.File("Logs/EventAlertService-.log", rollingInterval: RollingInterval.Day));
+        .WriteTo.File("Logs/HirschNotify-.log", rollingInterval: RollingInterval.Day));
 
     // Database — use SQLite if configured, otherwise MSSQL
     var dbProvider = builder.Configuration.GetValue<string>("DatabaseProvider") ?? "SqlServer";
@@ -132,7 +132,7 @@ try
         // Seed dev data if in Development and DB is empty
         if (app.Environment.IsDevelopment())
         {
-            await EventAlertService.Data.DevSeeder.SeedAsync(scope.ServiceProvider);
+            await HirschNotify.Data.DevSeeder.SeedAsync(scope.ServiceProvider);
         }
     }
 

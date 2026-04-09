@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace EventAlertService.Services;
+namespace HirschNotify.Services;
 
 public class RecentEvent
 {

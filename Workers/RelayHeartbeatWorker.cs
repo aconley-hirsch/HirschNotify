@@ -1,6 +1,6 @@
-using EventAlertService.Services;
+using HirschNotify.Services;
 
-namespace EventAlertService.Workers;
+namespace HirschNotify.Workers;
 
 public class RelayHeartbeatWorker : BackgroundService
 {

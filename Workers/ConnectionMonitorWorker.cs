@@ -1,7 +1,7 @@
-using EventAlertService.Services;
+using HirschNotify.Services;
 using Microsoft.EntityFrameworkCore;
 
-namespace EventAlertService.Workers;
+namespace HirschNotify.Workers;
 
 public class ConnectionMonitorWorker : BackgroundService
 {

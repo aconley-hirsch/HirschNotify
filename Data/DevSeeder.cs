@@ -1,9 +1,9 @@
-using EventAlertService.Models;
-using EventAlertService.Services;
+using HirschNotify.Models;
+using HirschNotify.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
-namespace EventAlertService.Data;
+namespace HirschNotify.Data;
 
 public static class DevSeeder
 {

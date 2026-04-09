@@ -1,12 +1,12 @@
 using System.Text.Encodings.Web;
-using EventAlertService.Data;
-using EventAlertService.Services;
+using HirschNotify.Data;
+using HirschNotify.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 
-namespace EventAlertService.Pages;
+namespace HirschNotify.Pages;
 
 [Authorize]
 public class IndexModel : PageModel

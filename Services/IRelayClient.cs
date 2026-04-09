@@ -1,4 +1,4 @@
-namespace EventAlertService.Services;
+namespace HirschNotify.Services;
 
 public record RelayRegistrationResult(string InstanceId, string ApiKey);
 public record RelayPairingCode(string Code, DateTime ExpiresAt);

@@ -1,9 +1,9 @@
-using EventAlertService.Data;
-using EventAlertService.Models;
+using HirschNotify.Data;
+using HirschNotify.Models;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 
-namespace EventAlertService.Services;
+namespace HirschNotify.Services;
 
 public class SettingsService : ISettingsService
 {
@@ -13,7 +13,7 @@ public class SettingsService : ISettingsService
     public SettingsService(AppDbContext db, IDataProtectionProvider dataProtectionProvider)
     {
         _db = db;
-        _protector = dataProtectionProvider.CreateProtector("EventAlertService.Settings");
+        _protector = dataProtectionProvider.CreateProtector("HirschNotify.Settings");
     }
 
     public async Task<string?> GetAsync(string key)

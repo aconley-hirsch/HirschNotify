@@ -1,12 +1,12 @@
-using EventAlertService.Data;
-using EventAlertService.Models;
-using EventAlertService.Services;
+using HirschNotify.Data;
+using HirschNotify.Models;
+using HirschNotify.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 
-namespace EventAlertService.Pages.Recipients;
+namespace HirschNotify.Pages.Recipients;
 
 [Authorize]
 public class IndexModel : PageModel
@@ -134,7 +134,7 @@ public class IndexModel : PageModel
         var sent = 0;
         foreach (var r in active)
         {
-            if (await _notificationSender.SendAsync(r, "Test notification from Event Alert Service."))
+            if (await _notificationSender.SendAsync(r, "Test notification from Hirsch Notify."))
                 sent++;
         }
 

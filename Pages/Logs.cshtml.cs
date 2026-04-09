@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
-namespace EventAlertService.Pages;
+namespace HirschNotify.Pages;
 
 [Authorize]
 public class LogsModel : PageModel
@@ -23,7 +23,7 @@ public class LogsModel : PageModel
             return Content($"<p class='text-muted-msg'>No log directory found. Searched: {string.Join(", ", candidates)}</p>", "text/html");
         }
 
-        var latest = Directory.GetFiles(logDir, "EventAlertService-*.log")
+        var latest = Directory.GetFiles(logDir, "HirschNotify-*.log")
             .OrderByDescending(f => f)
             .FirstOrDefault();
 

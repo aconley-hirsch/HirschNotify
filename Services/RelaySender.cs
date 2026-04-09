@@ -2,7 +2,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 
-namespace EventAlertService.Services;
+namespace HirschNotify.Services;
 
 public class RelaySender : IRelaySender
 {

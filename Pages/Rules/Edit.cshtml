@@ -1,5 +1,5 @@
 @page
-@model EventAlertService.Pages.Rules.EditModel
+@model HirschNotify.Pages.Rules.EditModel
 @{
     ViewData["Title"] = Model.IsNew ? "New Rule" : "Edit Rule";
 }
@@ -582,7 +582,7 @@ function filterOperators(fieldSelect) {
                     var listId = $"field-values-{i}";
                     <div class="condition-row" data-condition-index="@i">
                         <select class="field-path" name="Conditions[@i].FieldPath"
-                                onchange="filterOperators(this); fetchFieldValues(this);"
+                                onchange="filterOperators(this);"
                                 hx-get="/Rules/Edit?handler=FieldValues"
                                 hx-trigger="change"
                                 hx-target="#@listId"
@@ -610,8 +610,8 @@ function filterOperators(fieldSelect) {
                         </select>
                         <select class="operator" name="Conditions[@i].Operator">
                             @{
-                                var condType = EventAlertService.Services.EventSchema.GetFieldType(cond.FieldPath);
-                                var allowedOps = EventAlertService.Services.EventSchema.OperatorsForType(condType);
+                                var condType = HirschNotify.Services.EventSchema.GetFieldType(cond.FieldPath);
+                                var allowedOps = HirschNotify.Services.EventSchema.OperatorsForType(condType);
                             }
                             @foreach (var op in allowedOps)
                             {
@@ -710,7 +710,7 @@ function filterOperators(fieldSelect) {
                id="match-preview"
                hx-post="/Rules/Edit?handler=TestMatch"
                hx-trigger="load, input changed delay:300ms from:#rule-form, change delay:100ms from:#rule-form, conditions-changed from:#rule-form"
-               hx-include="[name^='Conditions'], [name='LogicOperator'], [name='MessageTemplate'], [name='Name']"
+               hx-include="#rule-form"
                hx-swap="innerHTML">
             <div class="match-panel-header">
                 <span class="match-panel-title">Recent Events</span>

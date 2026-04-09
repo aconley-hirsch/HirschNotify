@@ -1,10 +1,10 @@
 using System.Runtime.InteropServices;
 using System.Text.Json;
-using EventAlertService.Services;
+using HirschNotify.Services;
 using Microsoft.Win32;
 using VelocityAdapter;
 
-namespace EventAlertService.Workers;
+namespace HirschNotify.Workers;
 
 public class VelocityAdapterWorker : BackgroundService
 {

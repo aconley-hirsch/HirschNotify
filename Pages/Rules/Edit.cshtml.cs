@@ -1,13 +1,13 @@
 using System.Text.Json;
-using EventAlertService.Data;
-using EventAlertService.Models;
-using EventAlertService.Services;
+using HirschNotify.Data;
+using HirschNotify.Models;
+using HirschNotify.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 
-namespace EventAlertService.Pages.Rules;
+namespace HirschNotify.Pages.Rules;
 
 [Authorize]
 public class EditModel : PageModel

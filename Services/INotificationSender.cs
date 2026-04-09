@@ -1,6 +1,6 @@
-using EventAlertService.Models;
+using HirschNotify.Models;
 
-namespace EventAlertService.Services;
+namespace HirschNotify.Services;
 
 public interface INotificationSender
 {

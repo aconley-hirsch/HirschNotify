@@ -1,4 +1,4 @@
-namespace EventAlertService.Services;
+namespace HirschNotify.Services;
 
 public interface IThrottleManager
 {

@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
-namespace EventAlertService.Pages;
+namespace HirschNotify.Pages;
 
 [AllowAnonymous]
 public class LoginModel : PageModel

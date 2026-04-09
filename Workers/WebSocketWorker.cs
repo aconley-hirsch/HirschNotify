@@ -1,8 +1,8 @@
 using System.Net.WebSockets;
 using System.Text;
-using EventAlertService.Services;
+using HirschNotify.Services;
 
-namespace EventAlertService.Workers;
+namespace HirschNotify.Workers;
 
 public class WebSocketWorker : BackgroundService
 {

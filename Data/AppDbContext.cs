@@ -1,8 +1,8 @@
-using EventAlertService.Models;
+using HirschNotify.Models;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
-namespace EventAlertService.Data;
+namespace HirschNotify.Data;
 
 public class AppDbContext : IdentityDbContext
 {
