@@ -1,11 +1,8 @@
-name: Build MSI
+name: Build & Release MSI
 
 on:
   push:
-    branches: [main]
     tags: ['v*']
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -21,18 +18,38 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Restore
-        run: dotnet restore
+      - name: Extract version from tag
+        id: version
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            # Strip 'v' prefix and any pre-release suffix (e.g. v1.0.0-beta -> 1.0.0)
+            VERSION="${GITHUB_REF#refs/tags/v}"
+            VERSION="${VERSION%%-*}"
+          else
+            VERSION="0.0.0"
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Building version: ${VERSION}"
+
+      # ── Build the application ─────────────────────────
+      - name: Restore HirschNotify
+        run: dotnet restore HirschNotify.csproj
+
+      - name: Build HirschNotify
+        run: dotnet build HirschNotify.csproj -c Release --no-restore
 
       - name: Publish HirschNotify (self-contained win-x64)
-        run: dotnet publish -c Release -r win-x64 --self-contained -p:PublishSingleFile=false HirschNotify.csproj
+        run: dotnet publish HirschNotify.csproj -c Release -r win-x64 --self-contained --no-build -p:PublishSingleFile=false
 
+      # ── Build the installer ───────────────────────────
       - name: Restore Installer
         run: dotnet restore installer/HirschNotify.Installer.wixproj
 
       - name: Build Installer
-        run: dotnet build -c Release installer/HirschNotify.Installer.wixproj
+        run: dotnet build installer/HirschNotify.Installer.wixproj -c Release --no-restore -p:Version=${{ steps.version.outputs.version }}
 
+      # ── Locate and publish the MSI ────────────────────
       - name: Locate MSI
         id: find_msi
         shell: pwsh
@@ -51,9 +68,9 @@ jobs:
         with:
           name: HirschNotify-Installer
           path: ${{ steps.find_msi.outputs.msi_path }}
-          retention-days: 30
+          retention-days: 90
 
-      - name: Create GitHub Release on tag
+      - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
