@@ -1,0 +1,178 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util"
+     xmlns:fw="http://wixtoolset.org/schemas/v4/wxs/firewall">
+
+  <Package Name="Hirsch Notify"
+           Manufacturer="Hirsch Notify"
+           Version="1.0.0.0"
+           UpgradeCode="8F2E4A6B-1C3D-4E5F-A6B7-C8D9E0F1A2B3"
+           Scope="perMachine"
+           InstallerVersion="500">
+
+    <!-- Require admin elevation -->
+    <Launch Condition="Privileged" Message="This installer requires administrator privileges. Please right-click and select 'Run as administrator'." />
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Hirsch Notify is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- Branding -->
+    <Icon Id="HirschNotifyIcon" SourceFile="assets\app-icon.ico" />
+    <Property Id="ARPPRODUCTICON" Value="HirschNotifyIcon" />
+    <WixVariable Id="WixUIBannerBmp" Value="assets\banner.bmp" />
+    <WixVariable Id="WixUIDialogBmp" Value="assets\dialog.bmp" />
+
+    <!-- Properties with defaults -->
+    <Property Id="PORTNUMBER" Value="5100" />
+    <Property Id="EVENTSOURCEMODE" Value="VelocityAdapter" />
+    <Property Id="SERVICEACCOUNTNAME" Secure="yes" />
+    <Property Id="SERVICEACCOUNTPASSWORD" Hidden="yes" Secure="yes" />
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+    <Property Id="LAUNCHAFTER" Value="1" />
+
+    <!-- Directory structure -->
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="HirschNotify">
+        <Directory Id="LOGSFOLDER" Name="Logs" />
+      </Directory>
+    </StandardDirectory>
+
+    <!-- All published files -->
+    <ComponentGroup Id="PublishedFiles" Directory="INSTALLFOLDER">
+      <Files Include="..\bin\Release\net10.0\win-x64\publish\**">
+        <Exclude Files="..\bin\Release\net10.0\win-x64\publish\HirschNotify.exe" />
+      </Files>
+    </ComponentGroup>
+
+    <!-- Service, firewall, and logs -->
+    <ComponentGroup Id="ServiceComponents" Directory="INSTALLFOLDER">
+      <Component Id="ServiceComponent" Guid="A1B2C3D4-E5F6-7890-ABCD-EF1234567890">
+        <File Id="HirschNotifyExe" Source="..\bin\Release\net10.0\win-x64\publish\HirschNotify.exe" KeyPath="yes" />
+
+        <ServiceInstall Id="HirschNotifyInstall"
+                        Name="HirschNotify"
+                        DisplayName="Hirsch Notify"
+                        Description="Monitors Velocity access control events and sends push notifications."
+                        Type="ownProcess"
+                        Start="auto"
+                        ErrorControl="normal"
+                        Arguments="--urls http://0.0.0.0:[PORTNUMBER]" />
+
+        <ServiceControl Id="HirschNotifyControl"
+                        Name="HirschNotify"
+                        Stop="both"
+                        Remove="uninstall"
+                        Wait="yes" />
+
+        <util:ServiceConfig ServiceName="HirschNotify"
+                            FirstFailureActionType="restart"
+                            SecondFailureActionType="restart"
+                            ThirdFailureActionType="restart"
+                            RestartServiceDelayInSeconds="60"
+                            ResetPeriodInDays="1" />
+      </Component>
+
+      <Component Id="FirewallComponent" Guid="B2C3D4E5-F6A7-8901-BCDE-F12345678901">
+        <RegistryValue Root="HKLM" Key="SOFTWARE\HirschNotify" Name="FirewallConfigured" Type="integer" Value="1" KeyPath="yes" />
+        <fw:FirewallException Id="HirschNotifyFirewall"
+                              Name="Hirsch Notify"
+                              Protocol="tcp"
+                              Port="[PORTNUMBER]"
+                              Scope="any"
+                              Profile="all"
+                              Description="Allow inbound connections to Hirsch Notify web UI" />
+      </Component>
+
+      <Component Id="LogsDirectory" Guid="C3D4E5F6-A7B8-9012-CDEF-123456789012">
+        <CreateFolder Directory="LOGSFOLDER" />
+        <RegistryValue Root="HKLM" Key="SOFTWARE\HirschNotify" Name="LogsCreated" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <!-- Custom action: write event source mode for first startup -->
+    <CustomAction Id="WriteInstallConfig"
+                  Directory="INSTALLFOLDER"
+                  ExeCommand="cmd.exe /c echo {&quot;eventSourceMode&quot;:&quot;[EVENTSOURCEMODE]&quot;} > &quot;[INSTALLFOLDER]install-config.json&quot;"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="ignore" />
+
+    <CustomAction Id="ConfigureServiceAccount"
+                  Directory="INSTALLFOLDER"
+                  ExeCommand="cmd.exe /c sc config HirschNotify obj= &quot;[SERVICEACCOUNTNAME]&quot; password= &quot;[SERVICEACCOUNTPASSWORD]&quot;"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="ignore" />
+
+    <CustomAction Id="StartService"
+                  Directory="INSTALLFOLDER"
+                  ExeCommand="cmd.exe /c net start HirschNotify"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="ignore" />
+
+    <CustomAction Id="StopServiceOnUninstall"
+                  Directory="INSTALLFOLDER"
+                  ExeCommand="cmd.exe /c net stop HirschNotify"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="ignore" />
+
+    <CustomAction Id="DeleteServiceOnUninstall"
+                  Directory="INSTALLFOLDER"
+                  ExeCommand="cmd.exe /c sc delete HirschNotify"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="ignore" />
+
+    <CustomAction Id="LaunchBrowser"
+                  Directory="INSTALLFOLDER"
+                  ExeCommand="explorer.exe &quot;http://localhost:[PORTNUMBER]&quot;"
+                  Execute="immediate"
+                  Return="asyncNoWait" />
+
+    <InstallExecuteSequence>
+      <Custom Action="StopServiceOnUninstall" Before="RemoveFiles" Condition="Installed AND REMOVE=&quot;ALL&quot;" />
+      <Custom Action="DeleteServiceOnUninstall" After="StopServiceOnUninstall" Condition="Installed AND REMOVE=&quot;ALL&quot;" />
+      <Custom Action="WriteInstallConfig" After="InstallFiles" Condition="NOT Installed" />
+      <Custom Action="ConfigureServiceAccount" After="InstallServices" Condition="NOT Installed AND SERVICEACCOUNTNAME AND SERVICEACCOUNTPASSWORD" />
+      <Custom Action="StartService" After="ConfigureServiceAccount" Condition="NOT Installed" />
+      <Custom Action="LaunchBrowser" After="InstallFinalize" Condition="NOT Installed AND LAUNCHAFTER = 1" />
+    </InstallExecuteSequence>
+
+    <!-- Features -->
+    <Feature Id="ProductFeature" Title="Hirsch Notify" Level="1">
+      <ComponentGroupRef Id="PublishedFiles" />
+      <ComponentGroupRef Id="ServiceComponents" />
+    </Feature>
+
+    <!-- UI: WixUI_InstallDir with custom dialogs inserted -->
+    <!-- Flow: InstallDirDlg → PortDlg → EventSourceDlg → ServiceAccountDlg → VerifyReadyDlg -->
+    <UI>
+      <ui:WixUI Id="WixUI_InstallDir" />
+
+      <!-- Skip LicenseAgreementDlg: Welcome → InstallDir directly -->
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="InstallDirDlg" Order="999" Condition="NOT Installed" />
+      <Publish Dialog="InstallDirDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" Order="999" />
+
+      <!-- Override default InstallDirDlg → VerifyReadyDlg forward navigation -->
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="PortDlg" Order="999" />
+
+      <!-- PortDlg navigation -->
+      <Publish Dialog="PortDlg" Control="Back" Event="NewDialog" Value="InstallDirDlg" Order="1" />
+      <Publish Dialog="PortDlg" Control="Next" Event="NewDialog" Value="EventSourceDlg" Order="1" />
+
+      <!-- EventSourceDlg navigation -->
+      <Publish Dialog="EventSourceDlg" Control="Back" Event="NewDialog" Value="PortDlg" Order="1" />
+      <Publish Dialog="EventSourceDlg" Control="Next" Event="NewDialog" Value="ServiceAccountDlg" Order="1" />
+
+      <!-- ServiceAccountDlg navigation -->
+      <Publish Dialog="ServiceAccountDlg" Control="Back" Event="NewDialog" Value="EventSourceDlg" Order="1" />
+      <Publish Dialog="ServiceAccountDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg" Order="1" />
+
+      <!-- Override VerifyReadyDlg Back to go to ServiceAccountDlg -->
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="ServiceAccountDlg" Order="999" Condition="NOT Installed" />
+    </UI>
+
+  </Package>
+</Wix>

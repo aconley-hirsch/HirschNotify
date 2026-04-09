@@ -1,0 +1,31 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Fragment>
+    <UI>
+      <Dialog Id="EventSourceDlg" Width="370" Height="270" Title="!(loc.InstallDirDlg_Title)">
+        <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="!(loc.InstallDirDlgBannerBitmap)" />
+        <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="200" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}Event Source" />
+        <Control Id="Description" Type="Text" X="25" Y="23" Width="280" Height="15" Transparent="yes" NoPrefix="yes" Text="Choose how events are received from the access control system." />
+
+        <Control Id="SourceLabel" Type="Text" X="20" Y="60" Width="330" Height="15" NoPrefix="yes" Text="Select the event source:" />
+
+        <Control Id="VelocityAdapterRadio" Type="RadioButtonGroup" X="20" Y="82" Width="330" Height="80" Property="EVENTSOURCEMODE">
+          <RadioButtonGroup Property="EVENTSOURCEMODE">
+            <RadioButton Value="VelocityAdapter" X="0" Y="0" Width="330" Height="18" Text="Velocity Adapter (Recommended) — connects directly to Velocity database" />
+            <RadioButton Value="WebSocket" X="0" Y="40" Width="330" Height="18" Text="WebSocket — connects to Velocity Web API event stream" />
+          </RadioButtonGroup>
+        </Control>
+
+        <Control Id="VelocityNote" Type="Text" X="20" Y="170" Width="330" Height="30" NoPrefix="yes" Text="Velocity Adapter reads connection details from the local registry automatically. WebSocket requires additional configuration in the web interface after installation." />
+
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)" />
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)" />
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
+          <Publish Event="SpawnDialog" Value="CancelDlg" />
+        </Control>
+      </Dialog>
+    </UI>
+  </Fragment>
+</Wix>

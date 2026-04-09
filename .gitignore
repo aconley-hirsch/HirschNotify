@@ -46,3 +46,8 @@ agents/counselors/
 
 ## Build outputs
 publish/
+
+## WiX installer outputs
+*.msi
+*.wixpdb
+*.wixobj
