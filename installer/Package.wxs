@@ -30,6 +30,14 @@
     <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
     <Property Id="LAUNCHAFTER" Value="1" />
 
+    <!--
+      Allow the service account properties to flow from the UI sequence into
+      the deferred-elevated InstallServices action so [SERVICEACCOUNTNAME] /
+      [SERVICEACCOUNTPASSWORD] format strings on <ServiceInstall> resolve to
+      the values the user typed.
+    -->
+    <Property Id="SecureCustomProperties" Value="SERVICEACCOUNTNAME;SERVICEACCOUNTPASSWORD" />
+
     <!-- Directory structure -->
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="HirschNotify">
@@ -56,6 +64,8 @@
                         Type="ownProcess"
                         Start="auto"
                         ErrorControl="normal"
+                        Account="[SERVICEACCOUNTNAME]"
+                        Password="[SERVICEACCOUNTPASSWORD]"
                         Arguments="--urls http://0.0.0.0:[PORTNUMBER]" />
 
         <ServiceControl Id="HirschNotifyControl"
@@ -97,13 +107,6 @@
                   Impersonate="no"
                   Return="ignore" />
 
-    <CustomAction Id="ConfigureServiceAccount"
-                  Directory="INSTALLFOLDER"
-                  ExeCommand="cmd.exe /c sc config HirschNotify obj= &quot;[SERVICEACCOUNTNAME]&quot; password= &quot;[SERVICEACCOUNTPASSWORD]&quot;"
-                  Execute="deferred"
-                  Impersonate="no"
-                  Return="ignore" />
-
     <CustomAction Id="StartService"
                   Directory="INSTALLFOLDER"
                   ExeCommand="cmd.exe /c net start HirschNotify"
@@ -135,8 +138,7 @@
       <Custom Action="StopServiceOnUninstall" Before="RemoveFiles" Condition="Installed AND REMOVE=&quot;ALL&quot;" />
       <Custom Action="DeleteServiceOnUninstall" After="StopServiceOnUninstall" Condition="Installed AND REMOVE=&quot;ALL&quot;" />
       <Custom Action="WriteInstallConfig" After="InstallFiles" Condition="NOT Installed" />
-      <Custom Action="ConfigureServiceAccount" After="InstallServices" Condition="NOT Installed AND SERVICEACCOUNTNAME AND SERVICEACCOUNTPASSWORD" />
-      <Custom Action="StartService" After="ConfigureServiceAccount" Condition="NOT Installed" />
+      <Custom Action="StartService" After="InstallServices" Condition="NOT Installed" />
       <Custom Action="LaunchBrowser" After="InstallFinalize" Condition="NOT Installed AND LAUNCHAFTER = 1" />
     </InstallExecuteSequence>
 
