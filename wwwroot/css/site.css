@@ -696,6 +696,36 @@ article p:last-of-type { padding-bottom: 1.25rem; }
     margin-bottom: 2.5rem;
 }
 
+/* Optional heading inside the login card (used by Setup.cshtml). When present
+   it tightens the logo's margin since logo + heading + form is taller than
+   logo + form alone. */
+.login-card:has(.login-subtitle) .login-logo {
+    margin-bottom: 1.25rem;
+}
+
+.login-subtitle {
+    width: 100%;
+    text-align: center;
+    margin: 0 0 1.5rem;
+    color: #fff;
+}
+
+.login-subtitle h1 {
+    margin: 0 0 0.4rem;
+    /* Override the global "h1, h2, h3 { color: var(--text); }" rule, which is
+       dark and would be unreadable against the dark login-page background. */
+    color: var(--pale-sky);
+    font-size: 1.25rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+}
+
+.login-subtitle p {
+    margin: 0;
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.55);
+}
+
 .login-card form {
     width: 100%;
     display: flex;

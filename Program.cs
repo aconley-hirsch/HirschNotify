@@ -57,6 +57,7 @@ try
 
     // Application services
     builder.Services.AddScoped<ISettingsService, SettingsService>();
+    builder.Services.AddScoped<RelayUrlResolver>();
     builder.Services.AddHttpClient<IRelayClient, RelayClient>();
     builder.Services.AddHttpClient<IRelaySender, RelaySender>();
     builder.Services.AddScoped<INotificationSender, NotificationSender>();
@@ -86,6 +87,7 @@ try
     builder.Services.AddHostedService<ConnectionMonitorWorker>();
     builder.Services.AddHostedService<ThrottleCleanupWorker>();
     builder.Services.AddHostedService<RelayHeartbeatWorker>();
+    builder.Services.AddHostedService<RelayRegistrationPollingWorker>();
 
     // Razor Pages
     builder.Services.AddRazorPages();

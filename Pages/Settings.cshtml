@@ -159,6 +159,134 @@
         .col-3, .col-4, .col-5, .col-6, .col-8, .col-9 { grid-column: span 12; }
     }
 
+    /* Velocity service-account callout */
+    .velocity-account-callout {
+        display: flex;
+        gap: 0.85rem;
+        padding: 0.9rem 1rem;
+        background: rgba(0, 165, 153, 0.06);
+        border: 1px solid rgba(0, 165, 153, 0.25);
+        border-radius: var(--radius-sm);
+        margin-bottom: 1.25rem;
+    }
+    .velocity-account-icon {
+        flex-shrink: 0;
+        color: var(--electric-teal);
+        margin-top: 0.1rem;
+    }
+    .velocity-account-body { flex: 1; min-width: 0; }
+    .velocity-account-title {
+        font-size: 0.85rem;
+        font-weight: 650;
+        color: var(--text);
+        margin-bottom: 0.3rem;
+        display: flex;
+        align-items: baseline;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+    .velocity-account-identity {
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.78rem;
+        font-weight: 500;
+        color: var(--electric-teal);
+        background: rgba(0, 165, 153, 0.12);
+        padding: 0.1rem 0.45rem;
+        border-radius: var(--radius-sm);
+    }
+    .velocity-account-body p {
+        margin: 0;
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        line-height: 1.5;
+    }
+
+    /* Push relay — request flow states */
+    .relay-pending-card,
+    .relay-rejected-card {
+        display: flex;
+        gap: 0.85rem;
+        padding: 0.9rem 1rem;
+        border-radius: var(--radius-sm);
+        margin-bottom: 1rem;
+        align-items: flex-start;
+    }
+    .relay-pending-card {
+        background: rgba(0, 165, 153, 0.06);
+        border: 1px solid rgba(0, 165, 153, 0.25);
+    }
+    .relay-rejected-card {
+        background: rgba(199, 74, 86, 0.08);
+        border: 1px solid rgba(199, 74, 86, 0.3);
+    }
+    .relay-pending-spinner {
+        flex-shrink: 0;
+        color: var(--electric-teal);
+        margin-top: 0.1rem;
+        animation: relay-pending-spin 1.6s linear infinite;
+    }
+    @@keyframes relay-pending-spin {
+        from { transform: rotate(0deg); }
+        to   { transform: rotate(360deg); }
+    }
+    .relay-pending-body { flex: 1; min-width: 0; }
+    .relay-pending-title,
+    .relay-rejected-title {
+        font-size: 0.9rem;
+        font-weight: 650;
+        color: var(--text);
+        margin-bottom: 0.35rem;
+    }
+    .relay-pending-body p,
+    .relay-rejected-card p {
+        margin: 0 0 0.5rem;
+        font-size: 0.82rem;
+        color: var(--text-secondary);
+        line-height: 1.5;
+    }
+    .relay-pending-body dl {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 0.2rem 0.6rem;
+        margin: 0.5rem 0 0;
+        font-size: 0.78rem;
+    }
+    .relay-pending-body dt { color: var(--text-muted); font-weight: 600; }
+    .relay-pending-body dd { color: var(--text); margin: 0; font-family: "IBM Plex Mono", monospace; }
+    .relay-pending-body code,
+    .relay-rejected-card code { font-family: "IBM Plex Mono", monospace; font-size: 0.78rem; }
+
+    .relay-idle-info {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 0.25rem 0.75rem;
+        margin: 0 0 0.85rem;
+        font-size: 0.85rem;
+    }
+    .relay-idle-info dt { color: var(--text-muted); font-weight: 600; }
+    .relay-idle-info dd { color: var(--text); margin: 0; font-family: "IBM Plex Mono", monospace; font-size: 0.82rem; }
+    .form-warning {
+        padding: 0.55rem 0.85rem;
+        background: rgba(232, 168, 30, 0.1);
+        border: 1px solid rgba(232, 168, 30, 0.3);
+        color: #e8a81e;
+        border-radius: var(--radius-sm);
+        font-size: 0.82rem;
+        margin: 0 0 0.85rem;
+    }
+    .relay-advanced {
+        margin-top: 1.5rem;
+        padding-top: 1rem;
+        border-top: 1px dashed var(--border-subtle);
+    }
+    .relay-advanced summary {
+        cursor: pointer;
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: var(--text-secondary);
+        margin-bottom: 0.75rem;
+    }
+
     /* Inline registered card */
     .registered-status {
         display: flex;
@@ -193,6 +321,10 @@
         <a href="#eventsource">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
             Event Source
+        </a>
+        <a href="#velocity" id="navVelocity" style="@(isVelocity ? "" : "display:none")">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg>
+            Velocity Adapter
         </a>
         <a href="#websocket" id="navWebSocket" style="@(isVelocity ? "display:none" : "")">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/></svg>
@@ -246,27 +378,69 @@
                 <div class="settings-card">
                     <div class="settings-card-body">
                         <div class="field-grid">
-                            <div class="field col-6">
+                            <div class="field col-12">
                                 <label for="eventSourceMode">Mode</label>
                                 <select id="eventSourceMode" name="Settings[EventSource:Mode]">
                                     <option value="WebSocket" selected="@(Model.Get("EventSource:Mode", "WebSocket") == "WebSocket")">WebSocket</option>
                                     <option value="VelocityAdapter" selected="@(Model.Get("EventSource:Mode", "WebSocket") == "VelocityAdapter")">Velocity Adapter (Direct SQL)</option>
                                 </select>
+                                <small>WebSocket connects to a Velocity Web API event stream. Velocity Adapter connects directly to the Velocity SQL database via the SDK — typically used when this service is installed on the Velocity server itself, but it can also connect to a remote Velocity instance if you fill in the connection details below.</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Velocity Adapter -->
+            <section id="velocity" class="settings-section" style="@(isVelocity ? "" : "display:none")">
+                <div class="settings-section-header">
+                    <h2>Velocity Adapter</h2>
+                    <p>Connection details for the Velocity SQL database. When this service is installed on the Velocity server itself, leave these blank — values are read automatically from <code>HKLM\SOFTWARE\Wow6432Node\Hirsch Electronics\Velocity\Client</code>. Fill them in to connect to a <strong>remote</strong> Velocity instance from a machine that doesn't have the Velocity client registry.</p>
+                </div>
+                <div class="settings-card">
+                    <div class="settings-card-body">
+                        <div class="velocity-account-callout">
+                            <div class="velocity-account-icon">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                            </div>
+                            <div class="velocity-account-body">
+                                <div class="velocity-account-title">
+                                    Service Account
+                                    <span class="velocity-account-identity">@Model.CurrentServiceAccount</span>
+                                </div>
+                                <p>This service connects to Velocity using <strong>Windows integrated authentication</strong> — the SQL session is opened with the identity above. For Velocity Adapter mode to work, this account must <strong>also be configured as a Velocity Operator</strong> inside Velocity. To change the service account, stop the HirschNotify service in <code>services.msc</code>, set the Log On account, and start it again.</p>
+                            </div>
+                        </div>
+
+                        <div class="field-grid">
+                            <div class="field col-8">
+                                <label for="velocitySqlServer">SQL Server Instance</label>
+                                <input type="text" id="velocitySqlServer" name="Settings[Velocity:SqlServer]" value="@Model.Get("Velocity:SqlServer")" placeholder="VELAPP01\HIRSCH" />
+                                <small>Hostname or IP of the SQL Server, optionally with an instance name. Required for remote installs; auto-detected from the registry on local installs.</small>
+                            </div>
+                            <div class="field col-4">
+                                <label for="velocityDatabase">Database</label>
+                                <input type="text" id="velocityDatabase" name="Settings[Velocity:Database]" value="@Model.Get("Velocity:Database")" placeholder="Velocity" />
                             </div>
 
-                            <details id="velocityAdapterSection" style="@(isVelocity ? "" : "display:none")">
-                                <summary>Velocity Adapter — Advanced Override</summary>
+                            <div class="field col-12">
+                                <label for="velocityAppRole">Application Role</label>
+                                <textarea id="velocityAppRole" name="EncryptedSettings[Velocity:AppRole]" rows="2" placeholder="@(string.IsNullOrEmpty(Model.Get("Velocity:AppRole")) ? "Encrypted blob — auto-detected from the Velocity registry on local installs. Required for remote installs." : "•••••••• (configured)")" autocomplete="off" spellcheck="false"></textarea>
+                                <small>Velocity application role string. The Velocity client stores this as an encrypted blob under <code>HKLM\SOFTWARE\Wow6432Node\Hirsch Electronics\Velocity\Client\ApplicationRole</code> — for a remote install, export that registry value from a machine that has the Velocity client and paste it here. The SDK's <code>ConnectDecrypt</code> decrypts it at connect time.</small>
+                            </div>
+
+                            <details>
+                                <summary>Advanced: Timeouts</summary>
                                 <div class="field-grid">
                                     <div class="field col-6">
-                                        <label for="velocitySqlServer">SQL Server Instance</label>
-                                        <input type="text" id="velocitySqlServer" name="Settings[Velocity:SqlServer]" value="@Model.Get("Velocity:SqlServer")" placeholder="auto-detected from registry" />
+                                        <label for="velocityConnectTimeout">Connection Timeout (sec)</label>
+                                        <input type="number" id="velocityConnectTimeout" name="Settings[Velocity:ConnectionTimeoutSec]" value="@Model.Get("Velocity:ConnectionTimeoutSec", "15")" min="1" />
+                                        <small>How long to wait for the SDK to establish the initial TCP + SQL session.</small>
                                     </div>
                                     <div class="field col-6">
-                                        <label for="velocityDatabase">Database</label>
-                                        <input type="text" id="velocityDatabase" name="Settings[Velocity:Database]" value="@Model.Get("Velocity:Database")" placeholder="auto-detected from registry" />
-                                    </div>
-                                    <div class="field col-12">
-                                        <small>Connection details are read automatically from the Velocity registry. Only set these to override.</small>
+                                        <label for="velocityCommandTimeout">SQL Command Timeout (sec)</label>
+                                        <input type="number" id="velocityCommandTimeout" name="Settings[Velocity:CommandTimeoutSec]" value="@Model.Get("Velocity:CommandTimeoutSec", "")" min="0" placeholder="SDK default" />
+                                        <small>Timeout for individual SQL queries the SDK runs. Leave blank to use the SDK's default. Calls <code>VelocityServer.setSQLTimeout</code>.</small>
                                     </div>
                                 </div>
                             </details>
@@ -341,45 +515,97 @@
         </form>
 
         <!-- Push Relay -->
+        @if (Model.RelayState == "pending")
+        {
+            <!-- Auto-refresh while pending so the UI flips to registered as soon as the polling worker completes the handshake. -->
+            <meta http-equiv="refresh" content="10" />
+        }
         <section id="relay" class="settings-section">
             <div class="settings-section-header">
                 <h2>Push Relay</h2>
-                <p>Register this service with a push relay so paired devices can receive notifications.</p>
+                <p>Register this service with the push relay so paired devices can receive notifications.</p>
             </div>
             <div class="settings-card">
                 <div class="settings-card-body">
-                    @if (Model.Get("Relay:Registered") == "true")
+                    @if (Model.RelayState == "registered")
                     {
                         <div class="registered-status">
                             <mark>Registered</mark>
                             <dl>
                                 <dt>Service Name:</dt><dd>@Model.Get("Service:Name")</dd>
                                 <dt>Instance ID:</dt><dd>@Model.Get("Relay:InstanceId")</dd>
-                                <dt>Relay URL:</dt><dd>@Model.Get("Relay:Url")</dd>
+                                <dt>Relay URL:</dt><dd>@Model.EffectiveRelayUrl</dd>
                             </dl>
                         </div>
                         <form method="post" asp-page-handler="UnregisterRelay" onsubmit="return confirm('Unregister from the push relay? All paired devices will stop receiving notifications.');">
                             <button type="submit" class="btn-danger">Unregister from Relay</button>
                         </form>
                     }
+                    else if (Model.RelayState == "pending")
+                    {
+                        var requestIdShort = Model.Get("Relay:RequestId");
+                        if (requestIdShort.Length > 8) requestIdShort = requestIdShort.Substring(0, 8);
+
+                        <div class="relay-pending-card">
+                            <div class="relay-pending-spinner">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                            </div>
+                            <div class="relay-pending-body">
+                                <div class="relay-pending-title">Waiting for admin approval</div>
+                                <p>Submitted as <strong>@Model.Get("Service:Name")</strong>. The page will auto-refresh and switch to "Registered" as soon as your request is approved.</p>
+                                <dl>
+                                    <dt>Request ID:</dt><dd><code>@requestIdShort…</code></dd>
+                                    <dt>Submitted:</dt><dd>@Model.Get("Relay:RequestedAt")</dd>
+                                </dl>
+                            </div>
+                        </div>
+                        <form method="post" asp-page-handler="CancelRegistrationRequest">
+                            <button type="submit" class="btn-danger">Cancel request</button>
+                        </form>
+                    }
+                    else if (Model.RelayState == "rejected" || Model.RelayState == "expired")
+                    {
+                        var headline = Model.RelayState == "rejected" ? "Request rejected" : "Request expired";
+                        <div class="relay-rejected-card">
+                            <div class="relay-rejected-title">@headline</div>
+                            <p>@Model.Get("Relay:RejectionReason")</p>
+                        </div>
+                        <form method="post" asp-page-handler="DismissRegistrationResult">
+                            <button type="submit">Dismiss and try again</button>
+                        </form>
+                    }
                     else
                     {
-                        <form method="post" asp-page-handler="RegisterRelay">
-                            <div class="field-grid">
-                                <div class="field col-6">
-                                    <label for="relayUrl">Relay URL</label>
-                                    <input type="url" id="relayUrl" name="RelayUrl" value="@Model.Get("Relay:Url")" placeholder="https://relay.yourdomain.com" required />
-                                </div>
-                                <div class="field col-6">
-                                    <label for="relayRegToken">Registration Token</label>
-                                    <input type="text" id="relayRegToken" name="RegistrationToken" placeholder="rt_..." required />
-                                    <small>Get a registration token from your relay administrator.</small>
-                                </div>
-                                <div class="field col-12">
-                                    <button type="submit">Register with Relay</button>
-                                </div>
-                            </div>
+                        var serviceName = Model.Get("Service:Name");
+                        var canRequest = !string.IsNullOrWhiteSpace(serviceName);
+
+                        <dl class="relay-idle-info">
+                            <dt>Relay URL:</dt><dd>@Model.EffectiveRelayUrl</dd>
+                        </dl>
+                        <p class="text-muted-msg">
+                            Submit a registration request to the relay administrator. Once approved, this instance will automatically pick up its credentials and connect — no token to copy and paste.
+                        </p>
+                        @if (!canRequest)
+                        {
+                            <p class="form-warning">Set a Service Name above first — the relay admin needs it to identify your install.</p>
+                        }
+                        <form method="post" asp-page-handler="RequestRegistrationToken">
+                            <button type="submit" disabled="@(!canRequest)">Request Registration Token</button>
                         </form>
+
+                        <details class="relay-advanced">
+                            <summary>Advanced — self-host your own relay</summary>
+                            <form method="post">
+                                <div class="field-grid">
+                                    <div class="field col-12">
+                                        <label for="customRelayUrl">Relay URL override</label>
+                                        <input type="url" id="customRelayUrl" name="Settings[Relay:Url]" value="@Model.Get("Relay:Url")" placeholder="@HirschNotify.Services.RelayUrlResolver.Default" />
+                                        <small>Leave blank to use the default <code>@HirschNotify.Services.RelayUrlResolver.Default</code>. Changing this affects all subsequent relay calls.</small>
+                                    </div>
+                                </div>
+                                <button type="submit">Save override</button>
+                            </form>
+                        </details>
                     }
                 </div>
             </div>
@@ -445,16 +671,18 @@
         window.addEventListener('scroll', updateActive, { passive: true });
         updateActive();
 
-        // Toggle event source sections
+        // Toggle event source sections (Velocity Adapter ↔ WebSocket are mutually exclusive)
         const modeSelect = document.getElementById('eventSourceMode');
-        const velocitySection = document.getElementById('velocityAdapterSection');
+        const velocitySection = document.getElementById('velocity');
         const websocketSection = document.getElementById('websocket');
+        const navVelocity = document.getElementById('navVelocity');
         const navWebSocket = document.getElementById('navWebSocket');
 
         function toggleEventSource() {
             const isVel = modeSelect.value === 'VelocityAdapter';
             velocitySection.style.display = isVel ? '' : 'none';
             websocketSection.style.display = isVel ? 'none' : '';
+            navVelocity.style.display = isVel ? '' : 'none';
             navWebSocket.style.display = isVel ? 'none' : '';
         }
         modeSelect.addEventListener('change', toggleEventSource);

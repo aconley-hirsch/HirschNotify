@@ -1,10 +1,8 @@
 using System.Net.WebSockets;
-using System.Runtime.InteropServices;
 using HirschNotify.Data;
 using HirschNotify.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Win32;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,18 +15,63 @@ public class SettingsModel : PageModel
     private readonly INotificationSender _notificationSender;
     private readonly IWebSocketAuthService _authService;
     private readonly IRelayClient _relayClient;
+    private readonly RelayUrlResolver _relayUrlResolver;
     private readonly AppDbContext _db;
+    private readonly ILogger<SettingsModel> _logger;
 
-    public SettingsModel(ISettingsService settings, INotificationSender notificationSender, IWebSocketAuthService authService, IRelayClient relayClient, AppDbContext db)
+    public SettingsModel(
+        ISettingsService settings,
+        INotificationSender notificationSender,
+        IWebSocketAuthService authService,
+        IRelayClient relayClient,
+        RelayUrlResolver relayUrlResolver,
+        AppDbContext db,
+        ILogger<SettingsModel> logger)
     {
         _settings = settings;
         _notificationSender = notificationSender;
         _authService = authService;
         _relayClient = relayClient;
+        _relayUrlResolver = relayUrlResolver;
         _db = db;
+        _logger = logger;
     }
 
     public Dictionary<string, string> AllSettings { get; set; } = new();
+
+    /// <summary>
+    /// Identity the host process is currently running as. On Windows this is the
+    /// service Log On account; in dev or on macOS it's the local user. Surfaced
+    /// on the Velocity Adapter settings page so operators can confirm the
+    /// account that needs to be a Velocity Operator.
+    /// </summary>
+    public string CurrentServiceAccount { get; set; } = "";
+
+    /// <summary>
+    /// Resolved relay URL — either the user-configured override or the
+    /// hardcoded default. Used by the Push Relay section so the user always
+    /// sees the URL their instance will actually talk to.
+    /// </summary>
+    public string EffectiveRelayUrl { get; set; } = "";
+
+    /// <summary>
+    /// One of "registered", "pending", "rejected", "expired", or "idle".
+    /// Drives which Push Relay branch the Razor template renders.
+    /// </summary>
+    public string RelayState
+    {
+        get
+        {
+            if (Get("Relay:Registered") == "true") return "registered";
+            return Get("Relay:RequestStatus") switch
+            {
+                "pending" => "pending",
+                "rejected" => "rejected",
+                "expired" => "expired",
+                _ => "idle",
+            };
+        }
+    }
 
     public string Get(string key, string defaultValue = "")
     {
@@ -38,6 +81,28 @@ public class SettingsModel : PageModel
     public async Task OnGetAsync()
     {
         AllSettings = await _settings.GetAllAsync();
+        CurrentServiceAccount = ResolveCurrentServiceAccount();
+        EffectiveRelayUrl = await _relayUrlResolver.GetAsync();
+    }
+
+    private static string ResolveCurrentServiceAccount()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            try
+            {
+                using var identity = System.Security.Principal.WindowsIdentity.GetCurrent();
+                if (!string.IsNullOrEmpty(identity.Name))
+                    return identity.Name;
+            }
+            catch
+            {
+                // Fall through to Environment.UserName.
+            }
+        }
+        var domain = Environment.UserDomainName;
+        var user = Environment.UserName;
+        return string.IsNullOrEmpty(domain) ? user : $"{domain}\\{user}";
     }
 
     public async Task<IActionResult> OnPostAsync(Dictionary<string, string> settings, Dictionary<string, string> encryptedSettings)
@@ -105,33 +170,12 @@ public class SettingsModel : PageModel
 
     public async Task<IActionResult> OnPostTestVelocityConnectionAsync()
     {
-        // Read from registry first, then allow settings overrides
-        string? sqlServer = null, database = null, appRole = null;
-
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        var config = await VelocityConnectionResolver.ResolveAsync(_settings);
+        if (config == null)
         {
-            try
-            {
-                using var key = Registry.LocalMachine.OpenSubKey(
-                    @"SOFTWARE\Wow6432Node\Hirsch Electronics\Velocity\Client");
-                if (key != null)
-                {
-                    sqlServer = key.GetValue("SQL Server") as string;
-                    database = key.GetValue("Database") as string;
-                    appRole = key.GetValue("ApplicationRole") as string;
-                }
-            }
-            catch { }
-        }
-
-        var sqlServerOverride = await _settings.GetAsync("Velocity:SqlServer");
-        var databaseOverride = await _settings.GetAsync("Velocity:Database");
-        if (!string.IsNullOrEmpty(sqlServerOverride)) sqlServer = sqlServerOverride;
-        if (!string.IsNullOrEmpty(databaseOverride)) database = databaseOverride;
-
-        if (string.IsNullOrEmpty(sqlServer) || string.IsNullOrEmpty(database))
-        {
-            TempData["Error"] = "Velocity registry settings not found and no manual override configured.";
+            TempData["Error"] =
+                "Velocity connection settings are incomplete. Set SQL Server and Database " +
+                "under Settings → Velocity Adapter, or install on a machine with the Velocity client registry.";
             return RedirectToPage();
         }
 
@@ -148,19 +192,16 @@ public class SettingsModel : PageModel
                 connected.TrySetResult(false);
             };
 
-            if (!string.IsNullOrEmpty(appRole))
-                server.ConnectDecrypt(sqlServer, database, appRole);
-            else
-                server.Connect(sqlServer, database);
+            VelocityConnectionResolver.ApplyConnect(server, config);
 
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(Math.Max(15, config.ConnectionTimeoutSec)));
             var success = await connected.Task.WaitAsync(cts.Token);
 
             if (success)
             {
                 var version = server.VelocityRelease;
                 server.Disconnect();
-                TempData["Success"] = $"Connected to Velocity! Server: {sqlServer}, Database: {database}" +
+                TempData["Success"] = $"Connected to Velocity! Server: {config.SqlServer}, Database: {config.Database}" +
                     (string.IsNullOrEmpty(version) ? "" : $", Version: {version}");
             }
             else
@@ -170,7 +211,7 @@ public class SettingsModel : PageModel
         }
         catch (OperationCanceledException)
         {
-            TempData["Error"] = "Velocity connection timed out after 15 seconds.";
+            TempData["Error"] = $"Velocity connection timed out after {Math.Max(15, config.ConnectionTimeoutSec)} seconds.";
         }
         catch (Exception ex)
         {
@@ -200,33 +241,56 @@ public class SettingsModel : PageModel
         return RedirectToPage();
     }
 
-    public async Task<IActionResult> OnPostRegisterRelayAsync(string relayUrl, string registrationToken)
+    public async Task<IActionResult> OnPostRequestRegistrationTokenAsync()
     {
         var serviceName = await _settings.GetAsync("Service:Name") ?? "";
-        if (string.IsNullOrEmpty(relayUrl) || string.IsNullOrEmpty(serviceName) || string.IsNullOrEmpty(registrationToken))
+        if (string.IsNullOrWhiteSpace(serviceName))
         {
-            TempData["Error"] = string.IsNullOrEmpty(serviceName)
-                ? "Please set a Service Name in the settings above before registering."
-                : "All fields are required for relay registration.";
+            TempData["Error"] = "Set a Service Name above before requesting a relay registration.";
             return RedirectToPage();
         }
 
         try
         {
-            var result = await _relayClient.RegisterAsync(relayUrl, serviceName, "1.0.0", registrationToken);
-
-            await _settings.SetAsync("Relay:Url", relayUrl);
-            await _settings.SetAsync("Relay:InstanceId", result.InstanceId);
-            await _settings.SetEncryptedAsync("Relay:ApiKey", result.ApiKey);
-            await _settings.SetAsync("Relay:Registered", "true");
-
-            TempData["Success"] = $"Registered with relay! Instance ID: {result.InstanceId}";
+            var req = await _relayClient.RequestRegistrationTokenAsync(serviceName, "1.0.0");
+            await _settings.SetAsync("Relay:RequestId", req.RequestId);
+            await _settings.SetEncryptedAsync("Relay:RequestSecret", req.RequestSecret);
+            await _settings.SetAsync("Relay:RequestStatus", "pending");
+            await _settings.SetAsync("Relay:RequestedAt", DateTime.UtcNow.ToString("O"));
+            await _settings.SetAsync("Relay:RejectionReason", "");
+            TempData["Success"] = "Registration request submitted. Waiting for admin approval.";
         }
         catch (Exception ex)
         {
-            TempData["Error"] = $"Relay registration failed: {ex.Message}";
+            _logger.LogWarning(ex, "Failed to submit relay registration request");
+            TempData["Error"] = $"Could not submit registration request: {ex.Message}";
         }
+        return RedirectToPage();
+    }
 
+    public async Task<IActionResult> OnPostCancelRegistrationRequestAsync()
+    {
+        var requestId = await _settings.GetAsync("Relay:RequestId") ?? "";
+        var requestSecret = await _settings.GetEncryptedAsync("Relay:RequestSecret") ?? "";
+        if (!string.IsNullOrEmpty(requestId) && !string.IsNullOrEmpty(requestSecret))
+        {
+            try
+            {
+                await _relayClient.CancelRegistrationRequestAsync(requestId, requestSecret);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Cancel request failed on server; clearing locally anyway");
+            }
+        }
+        await ClearRequestKeysAsync();
+        TempData["Success"] = "Registration request cancelled.";
+        return RedirectToPage();
+    }
+
+    public async Task<IActionResult> OnPostDismissRegistrationResultAsync()
+    {
+        await ClearRequestKeysAsync();
         return RedirectToPage();
     }
 
@@ -236,8 +300,18 @@ public class SettingsModel : PageModel
         await _settings.SetAsync("Relay:InstanceId", "");
         await _settings.SetAsync("Relay:InstanceName", "");
         await _settings.SetAsync("Relay:Url", "");
+        await ClearRequestKeysAsync();
 
         TempData["Success"] = "Unregistered from relay.";
         return RedirectToPage();
+    }
+
+    private async Task ClearRequestKeysAsync()
+    {
+        await _settings.SetAsync("Relay:RequestId", "");
+        await _settings.SetAsync("Relay:RequestSecret", "");
+        await _settings.SetAsync("Relay:RequestStatus", "");
+        await _settings.SetAsync("Relay:RequestedAt", "");
+        await _settings.SetAsync("Relay:RejectionReason", "");
     }
 }

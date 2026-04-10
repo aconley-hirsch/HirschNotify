@@ -39,7 +39,6 @@ public class IndexModel : PageModel
         };
 
         var relayRegistered = await _settings.GetAsync("Relay:Registered") == "true";
-        var relayUrl = await _settings.GetAsync("Relay:Url") ?? "";
         var relayName = await _settings.GetAsync("Relay:InstanceName") ?? "";
         var eventSourceMode = await _settings.GetAsync("EventSource:Mode") ?? "WebSocket";
         var sourceLabel = eventSourceMode == "VelocityAdapter" ? "Velocity Connection" : "WebSocket";

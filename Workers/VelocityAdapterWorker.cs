@@ -1,7 +1,5 @@
-using System.Runtime.InteropServices;
 using System.Text.Json;
 using HirschNotify.Services;
-using Microsoft.Win32;
 using VelocityAdapter;
 
 namespace HirschNotify.Workers;
@@ -77,23 +75,20 @@ public class VelocityAdapterWorker : BackgroundService
         using var scope = _scopeFactory.CreateScope();
         var settings = scope.ServiceProvider.GetRequiredService<ISettingsService>();
 
-        var (sqlServer, database, appRole) = ReadVelocityRegistrySettings();
-
-        // Allow settings overrides
-        var sqlServerOverride = await settings.GetAsync("Velocity:SqlServer");
-        var databaseOverride = await settings.GetAsync("Velocity:Database");
-        if (!string.IsNullOrEmpty(sqlServerOverride)) sqlServer = sqlServerOverride;
-        if (!string.IsNullOrEmpty(databaseOverride)) database = databaseOverride;
-
-        if (string.IsNullOrEmpty(sqlServer) || string.IsNullOrEmpty(database))
+        var config = await VelocityConnectionResolver.ResolveAsync(settings, _logger);
+        if (config == null)
         {
-            _logger.LogWarning("Velocity connection settings not found in registry or settings. Waiting...");
+            _logger.LogWarning(
+                "Velocity connection settings not found. Configure Velocity:SqlServer + Velocity:Database " +
+                "in the settings page or install on a machine with the Velocity client registry. Waiting...");
             await Task.Delay(30000, stoppingToken);
             return;
         }
 
         _connectionState.Status = "Connecting";
-        _logger.LogInformation("Connecting to Velocity database {Database} on {Server}", database, sqlServer);
+        _logger.LogInformation(
+            "Connecting to Velocity database {Database} on {Server} (Windows auth, app role: {HasAppRole})",
+            config.Database, config.SqlServer, !string.IsNullOrEmpty(config.ApplicationRole));
 
         _server = new VelocityServer(bEnableLogging: true);
         var connected = new TaskCompletionSource<bool>();
@@ -140,15 +135,13 @@ public class VelocityAdapterWorker : BackgroundService
         _server.AlarmCleared += (alarmId, timestamp, op, workstation, clrType) =>
             OnAlarmCleared(alarmId, timestamp, op, workstation);
 
-        // Connect using Windows Auth with Application Role from registry
-        if (!string.IsNullOrEmpty(appRole))
-            _server.ConnectDecrypt(sqlServer, database, appRole);
-        else
-            _server.Connect(sqlServer, database);
+        // Pick the right Connect overload based on the resolved auth mode
+        // (Windows / Windows + AppRole / SQL mixed-mode).
+        VelocityConnectionResolver.ApplyConnect(_server, config);
 
         // Wait for connection result with timeout
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
-        cts.CancelAfter(TimeSpan.FromSeconds(30));
+        cts.CancelAfter(TimeSpan.FromSeconds(Math.Max(15, config.ConnectionTimeoutSec * 2)));
 
         try
         {
@@ -162,7 +155,7 @@ public class VelocityAdapterWorker : BackgroundService
         }
         catch (OperationCanceledException) when (!stoppingToken.IsCancellationRequested)
         {
-            _logger.LogError("Velocity connection timed out after 30 seconds");
+            _logger.LogError("Velocity connection timed out");
             _connectionState.Status = "Disconnected";
             return;
         }
@@ -367,42 +360,6 @@ public class VelocityAdapterWorker : BackgroundService
         _connectionState.IncrementEvents();
         _logger.LogDebug("Alarm {AlarmId} cleared by {Operator}", alarmId, operatorName);
         _ = _eventProcessor.ProcessEventAsync(json);
-    }
-
-    private (string? sqlServer, string? database, string? appRole) ReadVelocityRegistrySettings()
-    {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-        {
-            _logger.LogDebug("Not running on Windows — skipping registry read");
-            return (null, null, null);
-        }
-
-        try
-        {
-            using var key = Registry.LocalMachine.OpenSubKey(
-                @"SOFTWARE\Wow6432Node\Hirsch Electronics\Velocity\Client");
-
-            if (key == null)
-            {
-                _logger.LogWarning("Velocity registry key not found");
-                return (null, null, null);
-            }
-
-            var sqlServer = key.GetValue("SQL Server") as string;
-            var database = key.GetValue("Database") as string;
-            var appRole = key.GetValue("ApplicationRole") as string;
-
-            _logger.LogInformation(
-                "Read Velocity registry: Server={Server}, Database={Database}, AppRole={HasAppRole}",
-                sqlServer, database, !string.IsNullOrEmpty(appRole));
-
-            return (sqlServer, database, appRole);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to read Velocity registry settings");
-            return (null, null, null);
-        }
     }
 
     private static string SerializeEvent(object eventData)

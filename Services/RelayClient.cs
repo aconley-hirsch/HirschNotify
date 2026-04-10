@@ -8,6 +8,7 @@ public class RelayClient : IRelayClient
 {
     private readonly HttpClient _httpClient;
     private readonly ISettingsService _settings;
+    private readonly RelayUrlResolver _urlResolver;
     private readonly ILogger<RelayClient> _logger;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -15,10 +16,11 @@ public class RelayClient : IRelayClient
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
-    public RelayClient(HttpClient httpClient, ISettingsService settings, ILogger<RelayClient> logger)
+    public RelayClient(HttpClient httpClient, ISettingsService settings, RelayUrlResolver urlResolver, ILogger<RelayClient> logger)
     {
         _httpClient = httpClient;
         _settings = settings;
+        _urlResolver = urlResolver;
         _logger = logger;
     }
 
@@ -152,13 +154,91 @@ public class RelayClient : IRelayClient
 
     private async Task<(string url, string apiKey)> GetRelayConfig()
     {
-        var url = (await _settings.GetAsync("Relay:Url") ?? "").TrimEnd('/');
+        var url = await _urlResolver.GetAsync();
         var apiKey = await _settings.GetEncryptedAsync("Relay:ApiKey") ?? "";
 
-        if (string.IsNullOrEmpty(url) || string.IsNullOrEmpty(apiKey))
+        if (string.IsNullOrEmpty(apiKey))
             throw new InvalidOperationException("Relay is not configured. Register first.");
 
         return (url, apiKey);
+    }
+
+    public async Task<RelayRegistrationRequest> RequestRegistrationTokenAsync(string name, string version)
+    {
+        var url = await _urlResolver.GetAsync();
+        var request = new HttpRequestMessage(HttpMethod.Post, $"{url}/api/v1/registration-requests")
+        {
+            Content = JsonContent(new { name, version })
+        };
+
+        var response = await _httpClient.SendAsync(request);
+        var body = await response.Content.ReadAsStringAsync();
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogError("Failed to submit registration request: {Status} - {Body}", response.StatusCode, body);
+            throw new Exception($"Failed to submit registration request: {ParseErrorMessage(body)}");
+        }
+
+        var result = JsonSerializer.Deserialize<JsonElement>(body);
+        return new RelayRegistrationRequest(
+            result.GetProperty("requestId").GetString()!,
+            result.GetProperty("requestSecret").GetString()!
+        );
+    }
+
+    public async Task<RelayRegistrationStatus> PollRegistrationRequestAsync(string requestId, string requestSecret)
+    {
+        var url = await _urlResolver.GetAsync();
+        var request = new HttpRequestMessage(HttpMethod.Get, $"{url}/api/v1/registration-requests/{requestId}");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", requestSecret);
+
+        var response = await _httpClient.SendAsync(request);
+        var body = await response.Content.ReadAsStringAsync();
+
+        // 401 / 404 from the relay both surface as ErrInvalidRequestSecret —
+        // the server has either forgotten the request or the secret is bad.
+        // Either way the worker should treat it as terminal and stop polling.
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized
+            || response.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            _logger.LogWarning("Registration request {RequestId} no longer recognised by relay", requestId);
+            return new RelayRegistrationStatus("cancelled", null, null);
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogError("Failed to poll registration request: {Status} - {Body}", response.StatusCode, body);
+            throw new Exception($"Failed to poll registration request: {ParseErrorMessage(body)}");
+        }
+
+        var result = JsonSerializer.Deserialize<JsonElement>(body);
+        var status = result.GetProperty("status").GetString() ?? "";
+        string? token = null;
+        string? reason = null;
+        if (result.TryGetProperty("registrationToken", out var t) && t.ValueKind == JsonValueKind.String)
+            token = t.GetString();
+        if (result.TryGetProperty("rejectionReason", out var r) && r.ValueKind == JsonValueKind.String)
+            reason = r.GetString();
+
+        return new RelayRegistrationStatus(status, token, reason);
+    }
+
+    public async Task CancelRegistrationRequestAsync(string requestId, string requestSecret)
+    {
+        var url = await _urlResolver.GetAsync();
+        var request = new HttpRequestMessage(HttpMethod.Delete, $"{url}/api/v1/registration-requests/{requestId}");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", requestSecret);
+
+        var response = await _httpClient.SendAsync(request);
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            return; // already gone, idempotent
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync();
+            _logger.LogWarning("Cancel registration request returned {Status}: {Body}", response.StatusCode, body);
+        }
     }
 
     private static StringContent JsonContent(object payload)

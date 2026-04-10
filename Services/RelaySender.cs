@@ -8,6 +8,7 @@ public class RelaySender : IRelaySender
 {
     private readonly HttpClient _httpClient;
     private readonly ISettingsService _settings;
+    private readonly RelayUrlResolver _urlResolver;
     private readonly ILogger<RelaySender> _logger;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -15,10 +16,11 @@ public class RelaySender : IRelaySender
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
-    public RelaySender(HttpClient httpClient, ISettingsService settings, ILogger<RelaySender> logger)
+    public RelaySender(HttpClient httpClient, ISettingsService settings, RelayUrlResolver urlResolver, ILogger<RelaySender> logger)
     {
         _httpClient = httpClient;
         _settings = settings;
+        _urlResolver = urlResolver;
         _logger = logger;
     }
 
@@ -26,11 +28,11 @@ public class RelaySender : IRelaySender
     {
         try
         {
-            var relayUrl = (await _settings.GetAsync("Relay:Url") ?? "").TrimEnd('/');
+            var relayUrl = await _urlResolver.GetAsync();
             var instanceId = await _settings.GetAsync("Relay:InstanceId") ?? "";
             var apiKey = await _settings.GetEncryptedAsync("Relay:ApiKey") ?? "";
 
-            if (string.IsNullOrEmpty(relayUrl) || string.IsNullOrEmpty(instanceId) || string.IsNullOrEmpty(apiKey))
+            if (string.IsNullOrEmpty(instanceId) || string.IsNullOrEmpty(apiKey))
             {
                 _logger.LogWarning("Relay not configured, skipping push notification");
                 return false;
