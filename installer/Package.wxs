@@ -22,21 +22,19 @@
     <WixVariable Id="WixUIBannerBmp" Value="assets\banner.bmp" />
     <WixVariable Id="WixUIDialogBmp" Value="assets\dialog.bmp" />
 
-    <!-- Properties with defaults -->
+    <!--
+      Properties with defaults. Secure="yes" on the service-account properties
+      causes WiX to add them to SecureCustomProperties automatically, so they
+      flow from the UI sequence into the deferred-elevated InstallServices
+      action where the [SERVICEACCOUNTNAME] / [SERVICEACCOUNTPASSWORD] format
+      strings on <ServiceInstall> get resolved.
+    -->
     <Property Id="PORTNUMBER" Value="5100" />
     <Property Id="EVENTSOURCEMODE" Value="VelocityAdapter" />
     <Property Id="SERVICEACCOUNTNAME" Secure="yes" />
     <Property Id="SERVICEACCOUNTPASSWORD" Hidden="yes" Secure="yes" />
     <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
     <Property Id="LAUNCHAFTER" Value="1" />
-
-    <!--
-      Allow the service account properties to flow from the UI sequence into
-      the deferred-elevated InstallServices action so [SERVICEACCOUNTNAME] /
-      [SERVICEACCOUNTPASSWORD] format strings on <ServiceInstall> resolve to
-      the values the user typed.
-    -->
-    <Property Id="SecureCustomProperties" Value="SERVICEACCOUNTNAME;SERVICEACCOUNTPASSWORD" />
 
     <!-- Directory structure -->
     <StandardDirectory Id="ProgramFiles64Folder">
