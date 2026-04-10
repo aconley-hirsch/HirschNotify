@@ -168,9 +168,16 @@
       <Publish Dialog="EventSourceDlg" Control="Back" Event="NewDialog" Value="PortDlg" Order="1" />
       <Publish Dialog="EventSourceDlg" Control="Next" Event="NewDialog" Value="ServiceAccountDlg" Order="1" />
 
-      <!-- ServiceAccountDlg navigation -->
+      <!--
+        ServiceAccountDlg navigation. Next is only allowed to advance when both
+        the username and password fields are non-empty — empty values would
+        otherwise format-substitute into the ServiceInstall Account/Password
+        attributes as empty strings and break the service registration. WiX 5
+        no longer allows <Condition> as a child of <Control>, so the
+        validation lives on the navigation Publish itself.
+      -->
       <Publish Dialog="ServiceAccountDlg" Control="Back" Event="NewDialog" Value="EventSourceDlg" Order="1" />
-      <Publish Dialog="ServiceAccountDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg" Order="1" />
+      <Publish Dialog="ServiceAccountDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg" Order="1" Condition="SERVICEACCOUNTNAME AND SERVICEACCOUNTPASSWORD" />
 
       <!-- Override VerifyReadyDlg Back to go to ServiceAccountDlg -->
       <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="ServiceAccountDlg" Order="999" Condition="NOT Installed" />
