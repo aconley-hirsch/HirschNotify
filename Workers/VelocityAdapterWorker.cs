@@ -11,6 +11,7 @@ public class VelocityAdapterWorker : BackgroundService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ConnectionState _connectionState;
     private readonly IEventProcessor _eventProcessor;
+    private readonly IVelocityServerAccessor _serverAccessor;
     private readonly ILogger<VelocityAdapterWorker> _logger;
     private VelocityServer? _server;
 
@@ -18,11 +19,13 @@ public class VelocityAdapterWorker : BackgroundService
         IServiceScopeFactory scopeFactory,
         ConnectionState connectionState,
         IEventProcessor eventProcessor,
+        IVelocityServerAccessor serverAccessor,
         ILogger<VelocityAdapterWorker> logger)
     {
         _scopeFactory = scopeFactory;
         _connectionState = connectionState;
         _eventProcessor = eventProcessor;
+        _serverAccessor = serverAccessor;
         _logger = logger;
     }
 
@@ -100,6 +103,7 @@ public class VelocityAdapterWorker : BackgroundService
             _logger.LogInformation("Connected to Velocity server");
             _connectionState.Status = "Connected";
             _connectionState.ConnectedSince = DateTime.UtcNow;
+            _serverAccessor.Set(_server!);
             connected.TrySetResult(true);
         };
 
@@ -107,6 +111,7 @@ public class VelocityAdapterWorker : BackgroundService
         {
             _logger.LogError("Velocity connection failed: {Message}", sMessage);
             _connectionState.Status = "Disconnected";
+            _serverAccessor.Clear();
             connected.TrySetResult(false);
         };
 
@@ -115,6 +120,7 @@ public class VelocityAdapterWorker : BackgroundService
             _logger.LogWarning("Disconnected from Velocity server (forced: {Forced})", forceShutdown);
             _connectionState.Status = "Disconnected";
             _connectionState.ConnectedSince = null;
+            _serverAccessor.Clear();
         };
 
         _server._logMessage += (string msg) =>
@@ -171,6 +177,7 @@ public class VelocityAdapterWorker : BackgroundService
         }
         finally
         {
+            _serverAccessor.Clear();
             if (_server.IsConnected)
             {
                 _server.Disconnect();

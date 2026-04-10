@@ -19,6 +19,9 @@ public static class EventSchema
         new("velocityEventType",  "string",   "Velocity-specific event type name"),
         new("serverTime",         "datetime", "When the event was recorded on the server"),
         new("controllerTime",     "datetime", "When the event occurred on the controller"),
+        new("severity",           "string",   "Health event severity (info / warning / critical)"),
+        new("category",           "string",   "Health event sub-category (e.g. state_change)"),
+        new("timestamp",          "datetime", "Event timestamp"),
     };
 
     /// <summary>Fields specific to each event source type.</summary>
@@ -92,6 +95,33 @@ public static class EventSchema
             new("timestamp",          "datetime", "When the alarm was cleared"),
             new("operatorName",       "string",   "Operator who cleared"),
             new("workstation",        "string",   "Workstation name"),
+        },
+        ["WindowsService"] = new()
+        {
+            new("serviceName",        "string",  "Windows service short name (e.g. DTServer)"),
+            new("displayName",        "string",  "Windows service display name"),
+            new("status",             "string",  "Current status (Running, Stopped, StartPending, etc.)"),
+            new("previousStatus",     "string",  "Status before the observed transition (null on first observation)"),
+            new("startMode",          "string",  "Start type (Automatic, Manual, Disabled, etc.)"),
+            new("firstObservation",   "boolean", "True if this is the first time the service has been observed this session"),
+        },
+        ["SdkHealth"] = new()
+        {
+            new("queueCount",                "number",  "Pending credential downloads queued for controllers"),
+            new("failedLoginCount",          "number",  "SQL failed logins observed since last poll"),
+            new("failedLoginRatePerMinute",  "number",  "SQL failed login rate (per minute) over the last poll window"),
+            new("sqlLatencyMs",              "number",  "Round-trip time (ms) of the backlog query — proxy for SQL health"),
+            new("previousBand",              "string",  "Threshold band before this transition (Ok, Warning, Critical)"),
+            new("currentBand",               "string",  "Threshold band after this transition (Ok, Warning, Critical)"),
+            new("warnThreshold",             "number",  "Configured warn threshold for the queue metric"),
+            new("criticalThreshold",         "number",  "Configured critical threshold for the queue metric"),
+            new("warnRatePerMinute",         "number",  "Configured warn rate for failed logins"),
+            new("criticalRatePerMinute",     "number",  "Configured critical rate for failed logins"),
+            new("warnThresholdMs",           "number",  "Configured warn threshold for SQL latency"),
+            new("criticalThresholdMs",       "number",  "Configured critical threshold for SQL latency"),
+            new("velocityRelease",           "string",  "Velocity server release string (snapshot only)"),
+            new("serverName",                "string",  "Connected server name (snapshot only)"),
+            new("database",                  "string",  "Connected database name (snapshot only)"),
         },
     };
 

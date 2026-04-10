@@ -1,5 +1,7 @@
 using HirschNotify.Data;
 using HirschNotify.Services;
+using HirschNotify.Services.Health;
+using HirschNotify.Services.Health.Sources;
 using HirschNotify.Workers;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -63,10 +65,24 @@ try
     builder.Services.AddScoped<IThrottleManager, ThrottleManager>();
     builder.Services.AddHttpClient<IWebSocketAuthService, WebSocketAuthService>();
     builder.Services.AddSingleton<IEventProcessor, EventProcessor>();
+    builder.Services.AddSingleton<IVelocityServerAccessor, VelocityServerAccessor>();
+
+    // Health framework — SRE-facing Velocity health metrics pipeline.
+    // IHealthSource implementations are registered as singletons so the worker
+    // can enumerate them via DI; add new sources (event log, etc.) here.
+    builder.Services.Configure<HealthSettings>(
+        builder.Configuration.GetSection(HealthSettings.SectionName));
+    builder.Services.AddSingleton<IHealthEventEmitter, HealthEventEmitter>();
+    builder.Services.AddSingleton<IHealthSource, SdkHealthSource>();
+    if (OperatingSystem.IsWindows())
+    {
+        builder.Services.AddSingleton<IHealthSource, WindowsServiceHealthSource>();
+    }
 
     // Background workers
     builder.Services.AddHostedService<WebSocketWorker>();
     builder.Services.AddHostedService<VelocityAdapterWorker>();
+    builder.Services.AddHostedService<VelocitySreHealthWorker>();
     builder.Services.AddHostedService<ConnectionMonitorWorker>();
     builder.Services.AddHostedService<ThrottleCleanupWorker>();
     builder.Services.AddHostedService<RelayHeartbeatWorker>();
