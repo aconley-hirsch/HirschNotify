@@ -36,14 +36,15 @@ jobs:
           echo "Building version: ${VERSION}"
 
       # ── Build the application ─────────────────────────
+      # Publish does its own compile so we don't run a separate build step.
+      # The --no-build + --self-contained combination is a known foot-gun
+      # that produces a publish folder missing the bundled runtime DLLs,
+      # which causes "No frameworks were found" at service start time.
       - name: Restore HirschNotify
         run: dotnet restore HirschNotify.csproj -r win-x64
 
-      - name: Build HirschNotify
-        run: dotnet build HirschNotify.csproj -c Release -r win-x64 --no-restore
-
       - name: Publish HirschNotify (self-contained win-x64)
-        run: dotnet publish HirschNotify.csproj -c Release -r win-x64 --self-contained --no-build -p:PublishSingleFile=false
+        run: dotnet publish HirschNotify.csproj -c Release -r win-x64 --self-contained --no-restore -p:PublishSingleFile=false
 
       # ── Build the installer ───────────────────────────
       - name: Restore Installer
