@@ -20,6 +20,9 @@ obj/
 *.db
 *.db-shm
 *.db-wal
+*.db.*-bak
+*.db-shm.*-bak
+*.db-wal.*-bak
 
 ## Logs
 Logs/
