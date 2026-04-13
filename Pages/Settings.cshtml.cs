@@ -223,7 +223,7 @@ public class SettingsModel : PageModel
 
     public async Task<IActionResult> OnPostTestNotificationAsync()
     {
-        var active = await _db.Recipients.Where(r => r.IsActive).ToListAsync();
+        var active = await _db.Recipients.Include(r => r.ContactMethods).Where(r => r.IsActive).ToListAsync();
         if (!active.Any())
         {
             TempData["Error"] = "No active recipients to send test notification to.";

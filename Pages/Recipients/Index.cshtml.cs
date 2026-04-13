@@ -24,6 +24,7 @@ public class IndexModel : PageModel
 
     public List<Recipient> Recipients { get; set; } = new();
     public List<RelayDevice> PairedDevices { get; set; } = new();
+    public Dictionary<int, List<ContactMethod>> ContactMethodsByRecipient { get; set; } = new();
     public RelayPairingCode? PairingCode { get; set; }
     public string? PairingRecipientName { get; set; }
 
@@ -33,12 +34,19 @@ public class IndexModel : PageModel
     public RelayDevice? GetDeviceForRecipient(int recipientId) =>
         PairedDevices.FirstOrDefault(d => d.RecipientId == recipientId);
 
+    public List<ContactMethod> GetContactMethodsForRecipient(int recipientId) =>
+        ContactMethodsByRecipient.GetValueOrDefault(recipientId, []);
+
     public async Task OnGetAsync()
     {
         Recipients = await _db.Recipients.OrderBy(r => r.Name).ToListAsync();
 
         try { PairedDevices = await _relayClient.GetDevicesAsync(); }
         catch { PairedDevices = new(); }
+
+        ContactMethodsByRecipient = (await _db.ContactMethods.ToListAsync())
+            .GroupBy(cm => cm.RecipientId)
+            .ToDictionary(g => g.Key, g => g.ToList());
 
         // Restore pairing code from TempData
         if (TempData.Peek("PairingCode") is string code &&
@@ -124,7 +132,7 @@ public class IndexModel : PageModel
 
     public async Task<IActionResult> OnPostTestNotificationAsync()
     {
-        var active = await _db.Recipients.Where(r => r.IsActive).ToListAsync();
+        var active = await _db.Recipients.Include(r => r.ContactMethods).Where(r => r.IsActive).ToListAsync();
         if (!active.Any())
         {
             TempData["Success"] = "No active recipients.";

@@ -17,6 +17,7 @@ public class AppDbContext : IdentityDbContext
     public DbSet<RecipientGroup> RecipientGroups => Set<RecipientGroup>();
     public DbSet<RecipientGroupMember> RecipientGroupMembers => Set<RecipientGroupMember>();
     public DbSet<FilterRuleRecipientGroup> FilterRuleRecipientGroups => Set<FilterRuleRecipientGroup>();
+    public DbSet<ContactMethod> ContactMethods => Set<ContactMethod>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -94,6 +95,18 @@ public class AppDbContext : IdentityDbContext
             e.HasOne(m => m.Recipient)
                 .WithMany()
                 .HasForeignKey(m => m.RecipientId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<ContactMethod>(e =>
+        {
+            e.HasKey(c => c.Id);
+            e.Property(c => c.Type).HasMaxLength(20).IsRequired();
+            e.Property(c => c.Label).HasMaxLength(100).IsRequired();
+            e.Property(c => c.Configuration).HasMaxLength(2000).IsRequired();
+            e.HasOne(c => c.Recipient)
+                .WithMany(r => r.ContactMethods)
+                .HasForeignKey(c => c.RecipientId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

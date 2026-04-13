@@ -126,6 +126,46 @@ namespace HirschNotify.Data.Migrations
                     b.ToTable("FilterRuleRecipients");
                 });
 
+            modelBuilder.Entity("HirschNotify.Models.ContactMethod", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Configuration")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("RecipientId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RecipientId");
+
+                    b.ToTable("ContactMethods");
+                });
+
             modelBuilder.Entity("HirschNotify.Models.Recipient", b =>
                 {
                     b.Property<int>("Id")
@@ -141,22 +181,6 @@ namespace HirschNotify.Data.Migrations
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("NotifyVia")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(10)
-                        .HasColumnType("TEXT")
-                        .HasDefaultValue("SMS");
-
-                    b.Property<string>("PhoneNumber")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("PushoverUserKey")
-                        .HasMaxLength(50)
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("UpdatedAt")
@@ -386,6 +410,17 @@ namespace HirschNotify.Data.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("HirschNotify.Models.ContactMethod", b =>
+                {
+                    b.HasOne("HirschNotify.Models.Recipient", "Recipient")
+                        .WithMany("ContactMethods")
+                        .HasForeignKey("RecipientId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Recipient");
+                });
+
             modelBuilder.Entity("HirschNotify.Models.FilterCondition", b =>
                 {
                     b.HasOne("HirschNotify.Models.FilterRule", "FilterRule")
@@ -495,6 +530,8 @@ namespace HirschNotify.Data.Migrations
 
             modelBuilder.Entity("HirschNotify.Models.Recipient", b =>
                 {
+                    b.Navigation("ContactMethods");
+
                     b.Navigation("FilterRuleRecipients");
                 });
 #pragma warning restore 612, 618

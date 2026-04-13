@@ -71,6 +71,10 @@
                     {
                         <span class="channel-tag channel-unpaired">Not paired</span>
                     }
+                    @foreach (var cm in Model.GetContactMethodsForRecipient(r.Id))
+                    {
+                        <span class="channel-tag @(cm.IsActive ? "channel-paired" : "channel-unpaired")">@cm.Type: @cm.Label</span>
+                    }
                 </div>
             </a>
         </div>

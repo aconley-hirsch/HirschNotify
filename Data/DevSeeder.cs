@@ -43,6 +43,17 @@ public static class DevSeeder
             db.Recipients.Add(recipient);
             await db.SaveChangesAsync();
 
+            // Sample email contact method
+            db.ContactMethods.Add(new ContactMethod
+            {
+                RecipientId = recipient.Id,
+                Type = "email",
+                Label = "Dev email",
+                Configuration = "{\"address\":\"dev@example.com\"}",
+                IsActive = true
+            });
+            await db.SaveChangesAsync();
+
             // Filter rule
             var rule = new FilterRule
             {

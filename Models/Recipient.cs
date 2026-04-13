@@ -9,4 +9,5 @@ public class Recipient
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     public List<FilterRuleRecipient> FilterRuleRecipients { get; set; } = new();
+    public List<ContactMethod> ContactMethods { get; set; } = new();
 }

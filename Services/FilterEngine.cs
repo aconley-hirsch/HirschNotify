@@ -23,10 +23,12 @@ public class FilterEngine : IFilterEngine
             .Include(r => r.Conditions.OrderBy(c => c.SortOrder))
             .Include(r => r.FilterRuleRecipients)
                 .ThenInclude(fr => fr.Recipient)
+                    .ThenInclude(r => r.ContactMethods)
             .Include(r => r.FilterRuleRecipientGroups)
                 .ThenInclude(fg => fg.RecipientGroup)
                     .ThenInclude(g => g.Members)
                         .ThenInclude(m => m.Recipient)
+                            .ThenInclude(r => r.ContactMethods)
             .ToListAsync();
 
         var matched = new List<FilterRule>();

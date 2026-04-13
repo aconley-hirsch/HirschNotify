@@ -78,6 +78,72 @@
     }
 
     <hr />
+    <h3>Contact Methods</h3>
+    @if (Model.ContactMethods.Any())
+    {
+        @foreach (var cm in Model.ContactMethods)
+        {
+            <fieldset>
+                <p><strong>@cm.Type.ToUpper():</strong> @cm.Label</p>
+                <p><strong>Status:</strong>
+                    @if (cm.IsActive)
+                    {
+                        <mark>Active</mark>
+                    }
+                    else
+                    {
+                        <mark class="mark-danger">Inactive</mark>
+                    }
+                </p>
+                <div class="button-group">
+                    <form method="post" asp-page-handler="TestContactMethod" class="form-inline">
+                        <input type="hidden" name="contactMethodId" value="@cm.Id" />
+                        <input type="hidden" name="recipientId" value="@Model.Recipient.Id" />
+                        <button type="submit" class="btn-sm outline">Test</button>
+                    </form>
+                    <form method="post" asp-page-handler="ToggleContactMethod" class="form-inline">
+                        <input type="hidden" name="contactMethodId" value="@cm.Id" />
+                        <input type="hidden" name="recipientId" value="@Model.Recipient.Id" />
+                        <button type="submit" class="btn-sm outline">@(cm.IsActive ? "Disable" : "Enable")</button>
+                    </form>
+                    <form method="post" asp-page-handler="RemoveContactMethod" class="form-inline"
+                          onsubmit="return confirm('Remove this contact method?');">
+                        <input type="hidden" name="contactMethodId" value="@cm.Id" />
+                        <input type="hidden" name="recipientId" value="@Model.Recipient.Id" />
+                        <button type="submit" class="btn-sm btn-danger">Remove</button>
+                    </form>
+                </div>
+            </fieldset>
+        }
+    }
+
+    @if (Model.AvailableContactMethodTypes.Any())
+    {
+        <details>
+            <summary>Add Contact Method</summary>
+            <form method="post" asp-page-handler="AddContactMethod">
+                <input type="hidden" name="recipientId" value="@Model.Recipient.Id" />
+
+                <label for="cm-type">Type</label>
+                <select id="cm-type" name="type">
+                    @foreach (var t in Model.AvailableContactMethodTypes)
+                    {
+                        <option value="@t">@t</option>
+                    }
+                </select>
+
+                <label for="cm-label">Label</label>
+                <input type="text" id="cm-label" name="label" placeholder="e.g. Work email" />
+
+                <label for="cm-config">Email Address</label>
+                <input type="email" id="cm-config" name="configuration" placeholder="user@example.com" required />
+
+                <button type="submit">Add</button>
+            </form>
+        </details>
+    }
+
+    <hr />
     <div class="button-group">
         <form method="post" asp-page-handler="TestNotification" class="form-inline">
             <input type="hidden" name="id" value="@Model.Recipient.Id" />

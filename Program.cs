@@ -1,3 +1,4 @@
+using System.Runtime.Loader;
 using HirschNotify.Data;
 using HirschNotify.Services;
 using HirschNotify.Services.Health;
@@ -61,6 +62,39 @@ try
     builder.Services.AddHttpClient<IRelayClient, RelayClient>();
     builder.Services.AddHttpClient<IRelaySender, RelaySender>();
     builder.Services.AddScoped<INotificationSender, NotificationSender>();
+    builder.Services.AddScoped<IContactMethodSender, EmailSender>();
+
+    // Load contact method plugins from the plugins/ directory.
+    // Any DLL containing a class implementing IContactMethodSender is registered
+    // automatically. Drop a new plugin into plugins/ and restart to pick it up.
+    var pluginsDir = Path.Combine(AppContext.BaseDirectory, "plugins");
+    if (Directory.Exists(pluginsDir))
+    {
+        foreach (var dllPath in Directory.GetFiles(pluginsDir, "*.dll"))
+        {
+            try
+            {
+                var assembly = AssemblyLoadContext.Default.LoadFromAssemblyPath(Path.GetFullPath(dllPath));
+                var senderTypes = assembly.GetTypes()
+                    .Where(t => t.IsClass && !t.IsAbstract && typeof(IContactMethodSender).IsAssignableFrom(t))
+                    .ToList();
+
+                foreach (var type in senderTypes)
+                {
+                    builder.Services.AddScoped(typeof(IContactMethodSender), type);
+                    Log.Information("Loaded contact method plugin: {Type} from {Dll}", type.FullName, Path.GetFileName(dllPath));
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Failed to load plugin {Dll}", Path.GetFileName(dllPath));
+            }
+        }
+    }
+    else
+    {
+        Directory.CreateDirectory(pluginsDir);
+    }
     builder.Services.AddSingleton<ConnectionState>();
     builder.Services.AddScoped<IFilterEngine, FilterEngine>();
     builder.Services.AddScoped<IThrottleManager, ThrottleManager>();
@@ -123,7 +157,40 @@ try
                 FOREIGN KEY (FilterRuleId) REFERENCES FilterRules(Id) ON DELETE CASCADE,
                 FOREIGN KEY (RecipientGroupId) REFERENCES RecipientGroups(Id) ON DELETE CASCADE
             );
+            CREATE TABLE IF NOT EXISTS ContactMethods (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                RecipientId INTEGER NOT NULL,
+                Type TEXT NOT NULL,
+                Label TEXT NOT NULL,
+                Configuration TEXT NOT NULL DEFAULT '{{}}',
+                IsActive INTEGER NOT NULL DEFAULT 1,
+                CreatedAt TEXT NOT NULL DEFAULT (datetime('now')),
+                UpdatedAt TEXT NOT NULL DEFAULT (datetime('now')),
+                FOREIGN KEY (RecipientId) REFERENCES Recipients(Id) ON DELETE CASCADE
+            );
         ");
+
+        // Drop legacy notification columns from Recipients (PhoneNumber, PushoverUserKey, NotifyVia)
+        // that were defined in the initial migration but never used.
+        try
+        {
+            var columns = new[] { "PhoneNumber", "PushoverUserKey", "NotifyVia" };
+            foreach (var col in columns)
+            {
+                // Check if column exists before trying to drop it
+                var exists = db.Database.SqlQueryRaw<int>(
+                    $"SELECT COUNT(*) AS \"Value\" FROM pragma_table_info('Recipients') WHERE name = '{col}'")
+                    .FirstOrDefault();
+                if (exists > 0)
+                {
+                    db.Database.ExecuteSqlRaw($"ALTER TABLE Recipients DROP COLUMN {col}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Could not drop legacy columns from Recipients (non-fatal)");
+        }
 
         // Apply installer settings if install-config.json exists
         var installConfigPath = Path.Combine(AppContext.BaseDirectory, "install-config.json");

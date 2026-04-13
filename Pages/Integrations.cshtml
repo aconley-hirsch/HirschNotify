@@ -1,0 +1,288 @@
+@page
+@model HirschNotify.Pages.IntegrationsModel
+@{
+    ViewData["Title"] = "Integrations";
+}
+
+<style>
+    .integrations-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 1.25rem;
+        max-width: 720px;
+    }
+
+    .integration-card {
+        background: var(--surface);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-xs);
+        overflow: hidden;
+        transition: border-color 0.15s var(--ease);
+    }
+    .integration-card.enabled {
+        border-color: rgba(0, 165, 153, 0.3);
+    }
+
+    .integration-header {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1.25rem 1.5rem;
+        cursor: pointer;
+    }
+    .integration-header:hover { background: var(--surface-hover); }
+
+    .integration-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 44px;
+        height: 44px;
+        border-radius: var(--radius);
+        background: rgba(0, 165, 153, 0.08);
+        color: var(--electric-teal);
+        flex-shrink: 0;
+    }
+    .integration-card.enabled .integration-icon {
+        background: rgba(0, 165, 153, 0.15);
+    }
+
+    .integration-info { flex: 1; min-width: 0; }
+    .integration-name {
+        font-size: 0.95rem;
+        font-weight: 650;
+        color: var(--text);
+        margin: 0 0 0.2rem;
+    }
+    .integration-desc {
+        font-size: 0.82rem;
+        color: var(--text-muted);
+        margin: 0;
+        line-height: 1.4;
+    }
+
+    .integration-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.2rem 0.6rem;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        flex-shrink: 0;
+    }
+    .badge-enabled {
+        background: rgba(0, 165, 153, 0.12);
+        color: var(--electric-teal);
+    }
+    .badge-disabled {
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--text-muted);
+    }
+
+    .integration-body {
+        padding: 0 1.5rem 1.5rem;
+        border-top: 1px solid var(--border-subtle);
+    }
+    .integration-body .field-grid {
+        display: grid;
+        grid-template-columns: repeat(12, minmax(0, 1fr));
+        gap: 1.25rem 1rem;
+        padding-top: 1.25rem;
+    }
+    .integration-body label {
+        display: block;
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: var(--text);
+        margin-bottom: 0.4rem;
+    }
+    .integration-body input,
+    .integration-body select {
+        width: 100%;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.88rem;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        background: var(--surface);
+        color: var(--text);
+        transition: all 0.15s var(--ease);
+    }
+    .integration-body input:focus,
+    .integration-body select:focus {
+        outline: none;
+        border-color: var(--electric-teal);
+        box-shadow: 0 0 0 3px rgba(0, 165, 153, 0.12);
+    }
+    .integration-body small {
+        display: block;
+        color: var(--text-muted);
+        font-size: 0.78rem;
+        margin-top: 0.35rem;
+    }
+    .field { display: flex; flex-direction: column; }
+    .col-4 { grid-column: span 4; }
+    .col-6 { grid-column: span 6; }
+    .col-8 { grid-column: span 8; }
+    .col-12 { grid-column: span 12; }
+
+    .integration-actions {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.85rem 1.5rem;
+        border-top: 1px solid var(--border-subtle);
+        background: var(--surface-hover);
+    }
+    .integration-actions .actions-left {
+        display: flex;
+        gap: 0.75rem;
+        align-items: center;
+    }
+    .integration-actions .actions-right {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+    }
+    .test-input {
+        padding: 0.4rem 0.65rem;
+        font-size: 0.82rem;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        background: var(--surface);
+        color: var(--text);
+        width: 200px;
+    }
+    .test-input:focus {
+        outline: none;
+        border-color: var(--electric-teal);
+    }
+
+    @@media (max-width: 700px) {
+        .col-4, .col-6, .col-8 { grid-column: span 12; }
+        .test-input { width: 140px; }
+    }
+</style>
+
+@if (TempData["Success"] is string msg)
+{
+    <div class="flash-success">@msg</div>
+}
+@if (TempData["Error"] is string err)
+{
+    <div class="flash-error">@err</div>
+}
+
+<p style="color: var(--text-muted); font-size: 0.88rem; margin-bottom: 1.5rem;">
+    Configure notification channels. Enable an integration and set up its connection details to start sending alerts through it.
+</p>
+
+<div class="integrations-grid">
+    @foreach (var integration in Model.Integrations)
+    {
+        <div class="integration-card @(integration.IsEnabled ? "enabled" : "")" x-data="{ open: false }">
+            <div class="integration-header" x-on:click="open = !open">
+                <div class="integration-icon">
+                    @Html.Raw(integration.IconSvg)
+                </div>
+                <div class="integration-info">
+                    <p class="integration-name">@integration.DisplayName</p>
+                    <p class="integration-desc">@integration.Description</p>
+                </div>
+                <span class="integration-badge @(integration.IsEnabled ? "badge-enabled" : "badge-disabled")">
+                    @(integration.IsEnabled ? "Enabled" : "Disabled")
+                </span>
+            </div>
+
+            <div x-show="open" x-collapse x-cloak>
+                <form method="post" asp-page-handler="SaveConfig">
+                    <input type="hidden" name="type" value="@integration.Type" />
+
+                    <div class="integration-body">
+                        <div class="field-grid">
+                            @foreach (var field in integration.Fields)
+                            {
+                                var colClass = field.Type switch
+                                {
+                                    "number" => "col-4",
+                                    "select" => "col-4",
+                                    _ => field.Key.Contains("Host") || field.Key.Contains("Address") ? "col-8" : "col-6"
+                                };
+                                <div class="field @colClass">
+                                    <label for="@($"{integration.Type}_{field.Key}")">@field.Label</label>
+                                    @if (field.Type == "select")
+                                    {
+                                        var currentVal = integration.CurrentValues.GetValueOrDefault(field.Key, "true");
+                                        <select id="@($"{integration.Type}_{field.Key}")"
+                                                name="@(field.IsSecret ? $"secretConfig[{field.Key}]" : $"config[{field.Key}]")">
+                                            @if (currentVal != "false") {
+                                                <option value="true" selected>Yes</option>
+                                                <option value="false">No</option>
+                                            } else {
+                                                <option value="true">Yes</option>
+                                                <option value="false" selected>No</option>
+                                            }
+                                        </select>
+                                    }
+                                    else if (field.IsSecret)
+                                    {
+                                        var hasValue = integration.HasSecretValue.GetValueOrDefault(field.Key);
+                                        <input type="password"
+                                               id="@($"{integration.Type}_{field.Key}")"
+                                               name="secretConfig[@field.Key]"
+                                               placeholder="@(hasValue ? "********" : field.Placeholder)" />
+                                    }
+                                    else
+                                    {
+                                        <input type="@field.Type"
+                                               id="@($"{integration.Type}_{field.Key}")"
+                                               name="config[@field.Key]"
+                                               value="@integration.CurrentValues.GetValueOrDefault(field.Key, "")"
+                                               placeholder="@field.Placeholder" />
+                                    }
+                                    @if (field.HelpText != null)
+                                    {
+                                        <small>@field.HelpText</small>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="integration-actions">
+                        <div class="actions-left">
+                            <button type="submit">Save</button>
+                        </div>
+                        <div class="actions-right">
+                            <form method="post" asp-page-handler="Toggle" class="form-inline" style="display:inline">
+                                <input type="hidden" name="type" value="@integration.Type" />
+                                <button type="submit" class="outline btn-sm">
+                                    @(integration.IsEnabled ? "Disable" : "Enable")
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </form>
+
+                @if (integration.IsEnabled)
+                {
+                    <div class="integration-actions" style="border-top: 1px dashed var(--border-subtle); background: transparent;">
+                        <form method="post" asp-page-handler="Test" class="form-inline" style="display:flex; gap:0.5rem; align-items:center;">
+                            <input type="hidden" name="type" value="@integration.Type" />
+                            <input type="text" name="testAddress" class="test-input"
+                                   placeholder="@(integration.Type == "email" ? "test@example.com" : "test address")" />
+                            <button type="submit" class="outline btn-sm">Send Test</button>
+                        </form>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@if (!Model.Integrations.Any())
+{
+    <p style="color: var(--text-muted);">No integrations available. Register an <code>IContactMethodSender</code> implementation to add one.</p>
+}

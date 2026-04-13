@@ -4,6 +4,7 @@ using HirschNotify.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.EntityFrameworkCore;
 
 namespace HirschNotify.Pages.Recipients;
 
@@ -13,12 +14,14 @@ public class EditModel : PageModel
     private readonly AppDbContext _db;
     private readonly IRelayClient _relayClient;
     private readonly INotificationSender _notificationSender;
+    private readonly IEnumerable<IContactMethodSender> _contactMethodSenders;
 
-    public EditModel(AppDbContext db, IRelayClient relayClient, INotificationSender notificationSender)
+    public EditModel(AppDbContext db, IRelayClient relayClient, INotificationSender notificationSender, IEnumerable<IContactMethodSender> contactMethodSenders)
     {
         _db = db;
         _relayClient = relayClient;
         _notificationSender = notificationSender;
+        _contactMethodSenders = contactMethodSenders;
     }
 
     public Recipient Recipient { get; set; } = new();
@@ -26,12 +29,20 @@ public class EditModel : PageModel
     public string? ErrorMessage { get; set; }
     public RelayDevice? PairedDevice { get; set; }
     public RelayPairingCode? PairingCode { get; set; }
+    public List<ContactMethod> ContactMethods { get; set; } = new();
+    public List<string> AvailableContactMethodTypes { get; set; } = new();
 
     public async Task OnGetAsync(int? id)
     {
+        AvailableContactMethodTypes = _contactMethodSenders.Select(s => s.Type).ToList();
+
         if (id.HasValue)
         {
             Recipient = await _db.Recipients.FindAsync(id.Value) ?? new Recipient();
+            ContactMethods = await _db.ContactMethods
+                .Where(cm => cm.RecipientId == id.Value)
+                .OrderBy(cm => cm.Type).ThenBy(cm => cm.Label)
+                .ToListAsync();
             await LoadPairedDevice();
         }
 
@@ -90,7 +101,9 @@ public class EditModel : PageModel
 
     public async Task<IActionResult> OnPostTestNotificationAsync(int id)
     {
-        var recipient = await _db.Recipients.FindAsync(id);
+        var recipient = await _db.Recipients
+            .Include(r => r.ContactMethods)
+            .FirstOrDefaultAsync(r => r.Id == id);
         if (recipient == null)
         {
             TempData["Error"] = "Recipient not found.";
@@ -168,5 +181,88 @@ public class EditModel : PageModel
             TempData["Success"] = "Recipient deleted.";
         }
         return RedirectToPage("Index");
+    }
+
+    public async Task<IActionResult> OnPostAddContactMethodAsync(int recipientId, string type, string label, string configuration)
+    {
+        var sender = _contactMethodSenders.FirstOrDefault(s => string.Equals(s.Type, type, StringComparison.OrdinalIgnoreCase));
+        if (sender == null)
+        {
+            TempData["Error"] = "Unknown contact method type.";
+            return RedirectToPage(new { id = recipientId });
+        }
+
+        // For email, wrap raw address into JSON config
+        if (type == "email" && !configuration.TrimStart().StartsWith('{'))
+        {
+            configuration = System.Text.Json.JsonSerializer.Serialize(new { address = configuration });
+        }
+
+        var error = sender.ValidateConfiguration(configuration);
+        if (error != null)
+        {
+            TempData["Error"] = error;
+            return RedirectToPage(new { id = recipientId });
+        }
+
+        var cm = new ContactMethod
+        {
+            RecipientId = recipientId,
+            Type = type,
+            Label = string.IsNullOrWhiteSpace(label) ? type : label,
+            Configuration = configuration,
+            IsActive = true
+        };
+        _db.ContactMethods.Add(cm);
+        await _db.SaveChangesAsync();
+        TempData["Success"] = "Contact method added.";
+        return RedirectToPage(new { id = recipientId });
+    }
+
+    public async Task<IActionResult> OnPostRemoveContactMethodAsync(int contactMethodId, int recipientId)
+    {
+        var cm = await _db.ContactMethods.FindAsync(contactMethodId);
+        if (cm != null)
+        {
+            _db.ContactMethods.Remove(cm);
+            await _db.SaveChangesAsync();
+        }
+        TempData["Success"] = "Contact method removed.";
+        return RedirectToPage(new { id = recipientId });
+    }
+
+    public async Task<IActionResult> OnPostToggleContactMethodAsync(int contactMethodId, int recipientId)
+    {
+        var cm = await _db.ContactMethods.FindAsync(contactMethodId);
+        if (cm != null)
+        {
+            cm.IsActive = !cm.IsActive;
+            cm.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
+        }
+        return RedirectToPage(new { id = recipientId });
+    }
+
+    public async Task<IActionResult> OnPostTestContactMethodAsync(int contactMethodId, int recipientId)
+    {
+        var cm = await _db.ContactMethods.FindAsync(contactMethodId);
+        if (cm == null)
+        {
+            TempData["Error"] = "Contact method not found.";
+            return RedirectToPage(new { id = recipientId });
+        }
+
+        var sender = _contactMethodSenders.FirstOrDefault(s => string.Equals(s.Type, cm.Type, StringComparison.OrdinalIgnoreCase));
+        if (sender == null)
+        {
+            TempData["Error"] = $"No sender registered for type '{cm.Type}'.";
+            return RedirectToPage(new { id = recipientId });
+        }
+
+        var sent = await sender.SendAsync(cm, "Test", "Test notification from HirschNotify.");
+        TempData[sent ? "Success" : "Error"] = sent
+            ? "Test sent successfully."
+            : "Test failed. Check SMTP settings and contact method configuration.";
+        return RedirectToPage(new { id = recipientId });
     }
 }
