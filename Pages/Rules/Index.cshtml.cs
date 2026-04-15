@@ -25,6 +25,7 @@ public class IndexModel : PageModel
             .Include(r => r.FilterRuleRecipientGroups)
                 .ThenInclude(fg => fg.RecipientGroup)
             .OrderBy(r => r.Name)
+            .AsSplitQuery()
             .ToListAsync();
     }
 

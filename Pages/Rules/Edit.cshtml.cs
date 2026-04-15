@@ -62,6 +62,7 @@ public class EditModel : PageModel
                 .Include(r => r.Conditions)
                 .Include(r => r.FilterRuleRecipients)
                 .Include(r => r.FilterRuleRecipientGroups)
+                .AsSplitQuery()
                 .FirstOrDefaultAsync(r => r.Id == id.Value);
 
             if (rule != null)
@@ -121,6 +122,7 @@ public class EditModel : PageModel
                 .Include(r => r.Conditions)
                 .Include(r => r.FilterRuleRecipients)
                 .Include(r => r.FilterRuleRecipientGroups)
+                .AsSplitQuery()
                 .FirstAsync(r => r.Id == ruleId);
 
             rule.Name = name;
