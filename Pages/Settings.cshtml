@@ -714,7 +714,7 @@
                 <div class="settings-card-body">
                     <dl class="about-grid">
                         <dt>Current version</dt>
-                        <dd><code>v@HirschNotify.Services.UpdateState.CurrentVersion</code></dd>
+                        <dd><code>v@(HirschNotify.Services.UpdateState.CurrentVersion)</code></dd>
 
                         <dt>Last checked</dt>
                         <dd>@lastCheckedText</dd>
@@ -730,10 +730,10 @@
                     {
                         <div class="about-update-available">
                             <div class="about-update-header">
-                                <strong>v@latestManifest.Version is available</strong>
+                                <strong>v@(latestManifest.Version) is available</strong>
                                 <form method="post" asp-page-handler="InstallUpdate"
-                                      onsubmit="return confirm('Install v@latestManifest.Version now? The service will stop, files will be replaced, and the service will restart. This browser session will reconnect in ~30 seconds.');">
-                                    <button type="submit">Update to v@latestManifest.Version</button>
+                                      onsubmit="return confirm('Install v@(latestManifest.Version) now? The service will stop, files will be replaced, and the service will restart. This browser session will reconnect in ~30 seconds.');">
+                                    <button type="submit">Update to v@(latestManifest.Version)</button>
                                 </form>
                             </div>
                             <details class="about-release-notes">

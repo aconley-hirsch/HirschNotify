@@ -207,7 +207,7 @@ public class RelayRegistrationPollingWorker : BackgroundService
 
         try
         {
-            var result = await relayClient.RegisterAsync(relayUrl, serviceName, "1.0.0", registrationToken);
+            var result = await relayClient.RegisterAsync(relayUrl, serviceName, HirschNotify.Services.UpdateState.CurrentVersion, registrationToken);
 
             // Persist API key first — if any subsequent step crashes, the next
             // startup at least has working credentials.

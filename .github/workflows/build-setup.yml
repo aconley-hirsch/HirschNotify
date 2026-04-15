@@ -15,6 +15,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # MinVer reads the nearest git tag to derive the assembly
+          # version. A shallow clone (default) would hide history beyond
+          # the last commit, so fetch everything.
+          fetch-depth: 0
 
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v4
@@ -40,7 +45,7 @@ jobs:
         run: dotnet restore HirschNotify.csproj -r win-x64
 
       - name: Publish HirschNotify (self-contained win-x64)
-        run: dotnet publish HirschNotify.csproj -c Release -r win-x64 --self-contained --no-restore -p:PublishSingleFile=false -p:Version=${{ steps.version.outputs.version }}
+        run: dotnet publish HirschNotify.csproj -c Release -r win-x64 --self-contained --no-restore -p:PublishSingleFile=false
 
       # ── Build the installer ───────────────────────────
       - name: Install Inno Setup

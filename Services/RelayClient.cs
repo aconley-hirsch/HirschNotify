@@ -133,14 +133,14 @@ public class RelayClient : IRelayClient
         }
     }
 
-    public async Task HeartbeatAsync(string name, string status, long eventsToday, long alertsToday)
+    public async Task HeartbeatAsync(string name, string version, string status, long eventsToday, long alertsToday)
     {
         var (url, apiKey) = await GetRelayConfig();
         var instanceId = await _settings.GetAsync("Relay:InstanceId") ?? "";
 
         var request = new HttpRequestMessage(HttpMethod.Post, $"{url}/api/v1/instances/{instanceId}/heartbeat")
         {
-            Content = JsonContent(new { name, status, eventsToday, alertsToday })
+            Content = JsonContent(new { name, version, status, eventsToday, alertsToday })
         };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
 

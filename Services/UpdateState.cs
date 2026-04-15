@@ -1,3 +1,5 @@
+using System.Reflection;
+
 namespace HirschNotify.Services;
 
 /// <summary>
@@ -32,19 +34,63 @@ public sealed class UpdateState
         get { lock (_gate) return _lastCheckError; }
     }
 
-    /// <summary>Current executing assembly version, formatted as Major.Minor.Build.</summary>
-    public static string CurrentVersion =>
-        System.Reflection.Assembly.GetExecutingAssembly().GetName().Version is { } v
-            ? $"{v.Major}.{v.Minor}.{v.Build}"
-            : "0.0.0";
+    /// <summary>
+    /// Current running version. Reads <see cref="AssemblyInformationalVersionAttribute"/>
+    /// which MinVer sets to the exact git tag value (e.g. <c>1.0.9</c>
+    /// or <c>1.0.10-beta.1</c>). Falls back to <c>FileVersion</c> then to
+    /// assembly <see cref="AssemblyName.Version"/>.
+    /// </summary>
+    /// <remarks>
+    /// MinVer deliberately pins <c>AssemblyVersion</c> to major-only
+    /// (<c>1.0.0.0</c>) to preserve binary compatibility across patch
+    /// bumps, so <c>Assembly.GetName().Version</c> is the wrong source
+    /// to read from — it always returns <c>1.0.0.0</c>. The
+    /// <c>AssemblyInformationalVersion</c> attribute carries the real
+    /// string.
+    /// </remarks>
+    public static string CurrentVersion
+    {
+        get
+        {
+            var assembly = Assembly.GetExecutingAssembly();
+            var informational = assembly
+                .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+                ?.InformationalVersion;
+            if (!string.IsNullOrEmpty(informational))
+            {
+                // Strip any "+commit-sha" build metadata and "-pre" suffix
+                // so the display and the version compare both see a clean
+                // Major.Minor.Patch.
+                var plus = informational.IndexOf('+');
+                if (plus >= 0) informational = informational[..plus];
+                return informational;
+            }
+
+            var fileVersion = assembly
+                .GetCustomAttribute<AssemblyFileVersionAttribute>()
+                ?.Version;
+            if (!string.IsNullOrEmpty(fileVersion))
+            {
+                return fileVersion;
+            }
+
+            return assembly.GetName().Version?.ToString(3) ?? "0.0.0";
+        }
+    }
 
     public bool IsUpdateAvailable()
     {
         var manifest = LatestManifest;
         if (manifest is null) return false;
-        if (!Version.TryParse(manifest.Version, out var latest)) return false;
-        if (!Version.TryParse(CurrentVersion, out var current)) return false;
+        if (!Version.TryParse(StripPreRelease(manifest.Version), out var latest)) return false;
+        if (!Version.TryParse(StripPreRelease(CurrentVersion), out var current)) return false;
         return latest > current;
+    }
+
+    private static string StripPreRelease(string version)
+    {
+        var dash = version.IndexOf('-');
+        return dash >= 0 ? version[..dash] : version;
     }
 
     internal void SetSuccess(UpdateManifest manifest)

@@ -27,7 +27,7 @@ public interface IRelayClient
     Task<RelayPairingCode> CreatePairingCodeAsync(string? label, int? recipientId = null);
     Task<List<RelayDevice>> GetDevicesAsync();
     Task RevokeDeviceAsync(string deviceId);
-    Task HeartbeatAsync(string name, string status, long eventsToday, long alertsToday);
+    Task HeartbeatAsync(string name, string version, string status, long eventsToday, long alertsToday);
 
     // Self-service registration request flow.
     Task<RelayRegistrationRequest> RequestRegistrationTokenAsync(string name, string version);

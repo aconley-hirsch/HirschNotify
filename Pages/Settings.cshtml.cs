@@ -267,7 +267,7 @@ public class SettingsModel : PageModel
 
         try
         {
-            var req = await _relayClient.RequestRegistrationTokenAsync(serviceName, "1.0.0");
+            var req = await _relayClient.RequestRegistrationTokenAsync(serviceName, UpdateState.CurrentVersion);
             await _settings.SetAsync("Relay:RequestId", req.RequestId);
             await _settings.SetEncryptedAsync("Relay:RequestSecret", req.RequestSecret);
             await _settings.SetAsync("Relay:RequestStatus", "pending");

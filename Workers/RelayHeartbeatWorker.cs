@@ -38,6 +38,7 @@ public class RelayHeartbeatWorker : BackgroundService
                 var serviceName = await settings.GetAsync("Service:Name") ?? "";
                 await relayClient.HeartbeatAsync(
                     serviceName,
+                    HirschNotify.Services.UpdateState.CurrentVersion,
                     _connectionState.Status.ToLowerInvariant(),
                     _connectionState.EventsReceived,
                     _connectionState.AlertsSentToday

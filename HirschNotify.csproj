@@ -45,5 +45,18 @@
     <!-- Required on disk for VelocityAdapter (net48 assembly) probing, even though
          NU1510 flags it as redundant for .NET 10 code. Do not remove. -->
     <PackageReference Include="System.Security.Permissions" Version="10.0.5" />
+    <!-- Build-time only: reads the nearest git tag and sets Version /
+         AssemblyVersion / FileVersion automatically so the Settings >
+         About section always matches the latest released tag, locally
+         and in CI. Does not ship anything at runtime. -->
+    <PackageReference Include="MinVer" Version="6.0.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
   </ItemGroup>
+
+  <PropertyGroup>
+    <!-- MinVer config: match 'v*' tags and use them literally. -->
+    <MinVerTagPrefix>v</MinVerTagPrefix>
+  </PropertyGroup>
 </Project>
