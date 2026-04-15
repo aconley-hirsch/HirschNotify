@@ -373,7 +373,7 @@
                             </div>
                             <div class="field col-4">
                                 <label for="disconnectAlert">Disconnect Alert (sec)</label>
-                                <input type="number" id="disconnectAlert" name="Settings[WebSocket:DisconnectAlertSec]" value="@Model.Get("WebSocket:DisconnectAlertSec", "120")" min="1" />
+                                <input type="number" id="disconnectAlert" name="Settings[EventSource:DisconnectAlertSec]" value="@Model.Get("EventSource:DisconnectAlertSec", "120")" min="1" />
                                 <small>Alert after being disconnected this long.</small>
                             </div>
                         </div>
@@ -385,7 +385,7 @@
             <section id="eventsource" class="settings-section">
                 <div class="settings-section-header">
                     <h2>Event Source</h2>
-                    <p>Configure how events are received from the access control system. Changing the mode requires a service restart.</p>
+                    <p>Configure how events are received from the access control system. Mode changes take effect immediately.</p>
                 </div>
                 <div class="settings-card">
                     <div class="settings-card-body">

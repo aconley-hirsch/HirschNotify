@@ -40,11 +40,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Remove="decompiled.cs" />
-    <None Include="decompiled.cs" />
-  </ItemGroup>
-
-  <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.5" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.5">

@@ -28,9 +28,7 @@ public static class DevSeeder
         await settingsService.SetAsync("WebSocket:UsernameField", "UserName");
         await settingsService.SetAsync("WebSocket:PasswordField", "Password");
         await settingsService.SetAsync("WebSocket:TokenField", "Token");
-        await settingsService.SetAsync("WebSocket:ReconnectBaseDelaySec", "5");
-        await settingsService.SetAsync("WebSocket:ReconnectMaxDelaySec", "300");
-        await settingsService.SetAsync("WebSocket:DisconnectAlertSec", "120");
+        await settingsService.SetAsync("EventSource:DisconnectAlertSec", "120");
 
         // Recipient
         if (!await db.Recipients.AnyAsync())

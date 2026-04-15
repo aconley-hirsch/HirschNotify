@@ -237,7 +237,7 @@ public class VelocityAdapterWorker : BackgroundService
 
         _connectionState.IncrementEvents();
         _logger.LogInformation("External event: {Description} (ID: {EventID})", evt.Description, evt.EventID);
-        _ = _eventProcessor.ProcessEventAsync(json);
+        SafeProcessEvent(json);
     }
 
     private void OnInternalEvent(IInternalEvent evt)
@@ -262,7 +262,7 @@ public class VelocityAdapterWorker : BackgroundService
 
         _connectionState.IncrementEvents();
         _logger.LogInformation("Internal event: {Description} (ID: {EventID})", evt.Description, evt.EventID);
-        _ = _eventProcessor.ProcessEventAsync(json);
+        SafeProcessEvent(json);
     }
 
     private void OnTransactionEvent(ITransactionEvent evt)
@@ -292,7 +292,7 @@ public class VelocityAdapterWorker : BackgroundService
 
         _connectionState.IncrementEvents();
         _logger.LogInformation("Transaction event: {Description} (ID: {EventID})", evt.Description, evt.EventID);
-        _ = _eventProcessor.ProcessEventAsync(json);
+        SafeProcessEvent(json);
     }
 
     private void OnSoftwareEvent(ISoftwareEvent evt)
@@ -315,7 +315,7 @@ public class VelocityAdapterWorker : BackgroundService
 
         _connectionState.IncrementEvents();
         _logger.LogInformation("Software event: {Description} (ID: {EventID})", evt.Description, evt.EventID);
-        _ = _eventProcessor.ProcessEventAsync(json);
+        SafeProcessEvent(json);
     }
 
     private void OnMiscEvent(IMiscEvent evt)
@@ -338,7 +338,7 @@ public class VelocityAdapterWorker : BackgroundService
 
         _connectionState.IncrementEvents();
         _logger.LogInformation("Misc event: {Description} (ID: {EventID})", evt.Description, evt.EventID);
-        _ = _eventProcessor.ProcessEventAsync(json);
+        SafeProcessEvent(json);
     }
 
     private void OnAlarmActive(IAlarmActive alarm)
@@ -360,7 +360,7 @@ public class VelocityAdapterWorker : BackgroundService
 
         _connectionState.IncrementEvents();
         _logger.LogInformation("Alarm active: {Description} (ID: {EventID})", alarm.Description, alarm.EventId);
-        _ = _eventProcessor.ProcessEventAsync(json);
+        SafeProcessEvent(json);
     }
 
     private void OnAlarmAcknowledged(int alarmId, DateTime timestamp, string operatorName, string workstation)
@@ -377,7 +377,7 @@ public class VelocityAdapterWorker : BackgroundService
 
         _connectionState.IncrementEvents();
         _logger.LogDebug("Alarm {AlarmId} acknowledged by {Operator}", alarmId, operatorName);
-        _ = _eventProcessor.ProcessEventAsync(json);
+        SafeProcessEvent(json);
     }
 
     private void OnAlarmCleared(int alarmId, DateTime timestamp, string operatorName, string workstation)
@@ -394,7 +394,7 @@ public class VelocityAdapterWorker : BackgroundService
 
         _connectionState.IncrementEvents();
         _logger.LogDebug("Alarm {AlarmId} cleared by {Operator}", alarmId, operatorName);
-        _ = _eventProcessor.ProcessEventAsync(json);
+        SafeProcessEvent(json);
     }
 
     private static string SerializeEvent(object eventData)
@@ -404,5 +404,29 @@ public class VelocityAdapterWorker : BackgroundService
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
             WriteIndented = false
         });
+    }
+
+    // Vendor SDK delegates (ExternalEvent, InternalEvent, etc.) are
+    // synchronous void-returning, so the OnFoo handlers can't await
+    // directly. Route every fire-and-forget ProcessEventAsync through
+    // here so an exception in the processor gets logged with its
+    // event payload instead of silently vanishing into an unobserved
+    // Task.
+    private void SafeProcessEvent(string json)
+    {
+        _ = ProcessEventSafelyAsync(json);
+    }
+
+    private async Task ProcessEventSafelyAsync(string json)
+    {
+        try
+        {
+            await _eventProcessor.ProcessEventAsync(json);
+        }
+        catch (Exception ex)
+        {
+            var preview = json.Length > 200 ? json[..200] + "..." : json;
+            _logger.LogError(ex, "Failed to process Velocity event: {Preview}", preview);
+        }
     }
 }
