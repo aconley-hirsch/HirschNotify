@@ -44,9 +44,10 @@ Name: "{app}\Data"; Permissions: users-modify
 Name: "{app}\Keys"; Permissions: users-modify
 
 [Run]
-; Service registration (create + description + failure actions) runs from
-; CurStepChanged → RegisterService so sc.exe's exit code and stderr are
-; surfaced to the user on failure instead of being swallowed by runhidden.
+; Service registration (create + description + failure actions + start) runs
+; from CurStepChanged → RegisterService / StartExistingHirschNotifyService so
+; Win32 error codes are surfaced to the user on failure instead of being
+; swallowed by runhidden sc.exe invocations.
 
 ; Firewall rule — fresh install only.
 Filename: "{sys}\netsh.exe"; \
@@ -54,13 +55,6 @@ Filename: "{sys}\netsh.exe"; \
   Flags: runhidden; \
   Check: IsFreshInstall; \
   StatusMsg: "Adding firewall rule..."
-
-; Start (or restart) the service — always runs. PrepareToInstall stopped it
-; first on upgrades so file replacement wouldn't fail on a locked EXE.
-Filename: "{sys}\sc.exe"; \
-  Parameters: "start HirschNotify"; \
-  Flags: runhidden; \
-  StatusMsg: "Starting service..."
 
 ; Launch the web UI in the default browser — fresh install only.
 Filename: "http://localhost:{code:GetPort}"; \
@@ -80,10 +74,14 @@ const
     so the account/password/binPath strings flow from Pascal memory straight
     to Win32 without any shell or command-line parsing in between. }
   SC_MANAGER_ALL_ACCESS     = $000F003F;
+  SC_MANAGER_CONNECT        = $00000001;
   SERVICE_ALL_ACCESS        = $000F01FF;
+  SERVICE_START             = $00000010;
+  SERVICE_QUERY_STATUS      = $00000004;
   SERVICE_WIN32_OWN_PROCESS = $00000010;
   SERVICE_AUTO_START        = $00000002;
   SERVICE_ERROR_NORMAL      = $00000001;
+  ERROR_SERVICE_ALREADY_RUNNING = 1056;
 
 var
   PortPage: TInputQueryWizardPage;
@@ -110,6 +108,16 @@ function CreateServiceW(hSCManager: Cardinal;
                         lpPassword: string): Cardinal;
   external 'CreateServiceW@advapi32.dll stdcall';
 
+function OpenServiceW(hSCManager: Cardinal;
+                      lpServiceName: string;
+                      dwDesiredAccess: Cardinal): Cardinal;
+  external 'OpenServiceW@advapi32.dll stdcall';
+
+function StartServiceW(hService: Cardinal;
+                       dwNumServiceArgs: Cardinal;
+                       lpServiceArgVectors: Cardinal): Boolean;
+  external 'StartServiceW@advapi32.dll stdcall';
+
 function CloseServiceHandle(hSCObject: Cardinal): Boolean;
   external 'CloseServiceHandle@advapi32.dll stdcall';
 
@@ -135,6 +143,64 @@ end;
 function IsFreshInstall(): Boolean;
 begin
   Result := not WasServicePresent;
+end;
+
+{ Wraps StartServiceW with logging and the "already running" special case.
+  Returns True on success or ERROR_SERVICE_ALREADY_RUNNING; False otherwise.
+  OutErr receives the Win32 error code on failure, 0 on success. }
+function StartHirschNotify(hSvc: Cardinal; const Context: String; var OutErr: Cardinal): Boolean;
+begin
+  OutErr := 0;
+  Log(Context + ': calling StartServiceW');
+  if StartServiceW(hSvc, 0, 0) then
+  begin
+    Log(Context + ': StartServiceW returned success');
+    Result := True;
+    Exit;
+  end;
+  OutErr := Win32GetLastError();
+  if OutErr = ERROR_SERVICE_ALREADY_RUNNING then
+  begin
+    Log(Context + ': service already running');
+    OutErr := 0;
+    Result := True;
+    Exit;
+  end;
+  Log(Context + ': StartServiceW failed, GetLastError=' + IntToStr(OutErr));
+  Result := False;
+end;
+
+{ Open the existing HirschNotify service and start it. Used on upgrade,
+  where PrepareToInstall stopped the service before file replacement. }
+procedure StartExistingHirschNotifyService();
+var
+  hSCM, hSvc, StartErr: Cardinal;
+begin
+  hSCM := OpenSCManagerW(0, 0, SC_MANAGER_CONNECT);
+  if hSCM = 0 then
+  begin
+    Log('StartExistingService: OpenSCManagerW failed, GetLastError=' + IntToStr(Win32GetLastError()));
+    Exit;
+  end;
+  try
+    hSvc := OpenServiceW(hSCM, 'HirschNotify', SERVICE_START or SERVICE_QUERY_STATUS);
+    if hSvc = 0 then
+    begin
+      Log('StartExistingService: OpenServiceW failed, GetLastError=' + IntToStr(Win32GetLastError()));
+      Exit;
+    end;
+    try
+      if not StartHirschNotify(hSvc, 'StartExistingService', StartErr) then
+        MsgBox('HirschNotify was upgraded but the service did not restart (Win32 error ' +
+               IntToStr(StartErr) + ').' + #13#10#13#10 +
+               'Start it manually via services.msc or: sc start HirschNotify',
+               mbInformation, MB_OK);
+    finally
+      CloseServiceHandle(hSvc);
+    end;
+  finally
+    CloseServiceHandle(hSCM);
+  end;
 end;
 
 function InitializeSetup(): Boolean;
@@ -347,19 +413,33 @@ begin
     end;
 
     Log('RegisterService: CreateServiceW succeeded (service handle=' + IntToStr(hSvc) + ').');
-    CloseServiceHandle(hSvc);
 
-    { Description and failure actions take no user input, so there's nothing
-      to escape — safe to route through sc.exe. Non-fatal if they fail. }
-    Exec(ExpandConstant('{sys}\sc.exe'),
-         'description HirschNotify "Monitors Velocity access control events and sends push notifications."',
-         '', SW_HIDE, ewWaitUntilTerminated, ExitCode);
+    try
+      { Description and failure actions take no user input, so there's nothing
+        to escape — safe to route through sc.exe. Non-fatal if they fail. }
+      Exec(ExpandConstant('{sys}\sc.exe'),
+           'description HirschNotify "Monitors Velocity access control events and sends push notifications."',
+           '', SW_HIDE, ewWaitUntilTerminated, ExitCode);
 
-    Exec(ExpandConstant('{sys}\sc.exe'),
-         'failure HirschNotify reset= 86400 actions= restart/60000/restart/60000/restart/60000',
-         '', SW_HIDE, ewWaitUntilTerminated, ExitCode);
+      Exec(ExpandConstant('{sys}\sc.exe'),
+           'failure HirschNotify reset= 86400 actions= restart/60000/restart/60000/restart/60000',
+           '', SW_HIDE, ewWaitUntilTerminated, ExitCode);
 
-    Result := True;
+      { Start the service using the handle we already have. The old approach
+        ran sc.exe start from [Run] with runhidden, which swallowed any
+        non-zero exit code and left the installer claiming success while the
+        service sat in STOPPED state. }
+      if not StartHirschNotify(hSvc, 'RegisterService', LastErr) then
+        MsgBox('The HirschNotify service was registered but did not start (Win32 error ' +
+               IntToStr(LastErr) + ').' + #13#10#13#10 +
+               'The installer will complete, but you will need to start the service ' +
+               'manually via services.msc or: sc start HirschNotify',
+               mbInformation, MB_OK);
+
+      Result := True;
+    finally
+      CloseServiceHandle(hSvc);
+    end;
   finally
     CloseServiceHandle(hSCM);
   end;
@@ -391,24 +471,33 @@ var
   Contents: String;
   Mode: String;
 begin
-  if (CurStep = ssPostInstall) and IsFreshInstall() then
+  if CurStep = ssPostInstall then
   begin
-    { Register the service before [Run] fires (firewall rule, sc start,
-      browser launch). Aborts the install with a visible error if sc.exe
-      fails — the previous runhidden [Run] entries swallowed failures and
-      left the system half-installed. }
-    if not RegisterService() then
-      Abort;
+    if IsFreshInstall() then
+    begin
+      { Register and start the service before [Run] fires (firewall rule,
+        browser launch). Aborts the install with a visible error if the
+        registration fails — the previous runhidden [Run] entries swallowed
+        failures and left the system half-installed. }
+      if not RegisterService() then
+        Abort;
 
-    { Hand off the chosen Event Source mode to the service's first-boot
-      handler in Program.cs:~195. Deleted by the app after consumption. }
-    if EventSourcePage.SelectedValueIndex = 0 then
-      Mode := 'VelocityAdapter'
+      { Hand off the chosen Event Source mode to the service's first-boot
+        handler in Program.cs:~195. Deleted by the app after consumption. }
+      if EventSourcePage.SelectedValueIndex = 0 then
+        Mode := 'VelocityAdapter'
+      else
+        Mode := 'WebSocket';
+
+      ConfigPath := ExpandConstant('{app}\install-config.json');
+      Contents := '{"eventSourceMode":"' + Mode + '"}';
+      SaveStringToFile(ConfigPath, Contents, False);
+    end
     else
-      Mode := 'WebSocket';
-
-    ConfigPath := ExpandConstant('{app}\install-config.json');
-    Contents := '{"eventSourceMode":"' + Mode + '"}';
-    SaveStringToFile(ConfigPath, Contents, False);
+    begin
+      { Upgrade path — files have been replaced, now restart the service
+        that PrepareToInstall stopped. }
+      StartExistingHirschNotifyService();
+    end;
   end;
 end;
