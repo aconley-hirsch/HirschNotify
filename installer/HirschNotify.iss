@@ -28,7 +28,6 @@ OutputDir=Output
 SetupIconFile=assets\app-icon.ico
 WizardImageFile=assets\wizard-large.bmp
 WizardSmallImageFile=assets\wizard-small.bmp
-WizardImageStretch=no
 Compression=lzma2/ultra
 SolidCompression=yes
 ArchitecturesAllowed=x64compatible
@@ -75,23 +74,62 @@ Filename: "{sys}\sc.exe"; Parameters: "delete HirschNotify"; Flags: runhidden; R
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""Hirsch Notify"""; Flags: runhidden; RunOnceId: "DelFw"
 
 [Code]
+const
+  { OpenSCManager / CreateService access masks and service config constants
+    from WinSvc.h. We call these APIs directly via the advapi32 imports below
+    so the account/password/binPath strings flow from Pascal memory straight
+    to Win32 without any shell or command-line parsing in between. }
+  SC_MANAGER_ALL_ACCESS     = $000F003F;
+  SERVICE_ALL_ACCESS        = $000F01FF;
+  SERVICE_WIN32_OWN_PROCESS = $00000010;
+  SERVICE_AUTO_START        = $00000002;
+  SERVICE_ERROR_NORMAL      = $00000001;
+
 var
   PortPage: TInputQueryWizardPage;
   EventSourcePage: TInputOptionWizardPage;
   AccountPage: TInputQueryWizardPage;
   WasServicePresent: Boolean;
 
+function OpenSCManagerW(lpMachineName: Cardinal; lpDatabaseName: Cardinal;
+                        dwDesiredAccess: Cardinal): Cardinal;
+  external 'OpenSCManagerW@advapi32.dll stdcall';
+
+function CreateServiceW(hSCManager: Cardinal;
+                        lpServiceName: string;
+                        lpDisplayName: string;
+                        dwDesiredAccess: Cardinal;
+                        dwServiceType: Cardinal;
+                        dwStartType: Cardinal;
+                        dwErrorControl: Cardinal;
+                        lpBinaryPathName: string;
+                        lpLoadOrderGroup: Cardinal;
+                        lpdwTagId: Cardinal;
+                        lpDependencies: Cardinal;
+                        lpServiceStartName: string;
+                        lpPassword: string): Cardinal;
+  external 'CreateServiceW@advapi32.dll stdcall';
+
+function CloseServiceHandle(hSCObject: Cardinal): Boolean;
+  external 'CloseServiceHandle@advapi32.dll stdcall';
+
+function Win32GetLastError(): Cardinal;
+  external 'GetLastError@kernel32.dll stdcall';
+
 function ServiceExists(): Boolean;
 var
   ResultCode: Integer;
+  Launched: Boolean;
 begin
-  Result := Exec(ExpandConstant('{sys}\sc.exe'),
-                 'query HirschNotify',
-                 '',
-                 SW_HIDE,
-                 ewWaitUntilTerminated,
-                 ResultCode)
-            and (ResultCode = 0);
+  Launched := Exec(ExpandConstant('{sys}\sc.exe'),
+                   'query HirschNotify',
+                   '',
+                   SW_HIDE,
+                   ewWaitUntilTerminated,
+                   ResultCode);
+  Log('ServiceExists: sc query launched=' + IntToStr(Ord(Launched)) +
+      ' exit=' + IntToStr(ResultCode));
+  Result := Launched and (ResultCode = 0);
 end;
 
 function IsFreshInstall(): Boolean;
@@ -105,6 +143,10 @@ begin
   // the service on upgrades, so by then ServiceExists() would still return
   // true but we want the "was this a fresh install?" answer locked in here.
   WasServicePresent := ServiceExists();
+  if WasServicePresent then
+    Log('InitializeSetup: HirschNotify service already registered — running in UPGRADE mode (config pages will be skipped).')
+  else
+    Log('InitializeSetup: HirschNotify service not present — running in FRESH INSTALL mode.');
   Result := True;
 end;
 
@@ -197,118 +239,98 @@ begin
     Result := PortPage.Values[0];
 end;
 
-{ CRT-compatible argv quoting, per the rules documented at
-  https://learn.microsoft.com/cpp/c-language/parsing-c-command-line-arguments
-  The value is wrapped in quotes so it arrives at sc.exe as a single argv
-  entry, even if it contains spaces, ampersands, carets, or other shell
-  metacharacters. A backslash is only special when it precedes a quote (or
-  the closing quote of the argument), in which case every backslash in the
-  run must be doubled so CRT parses them as literal backslashes.
-
-  Examples:
-    P@ss"w^rd&1   →  "P@ss\"w^rd&1"
-    a\b           →  "a\b"
-    a\"b          →  "a\\\"b"
-    a\            →  "a\\"
-}
-function QuoteArg(const S: String): String;
-var
-  I, BsRun, J: Integer;
-  C: Char;
-  Body: String;
-begin
-  Body := '';
-  BsRun := 0;
-  for I := 1 to Length(S) do
-  begin
-    C := S[I];
-    if C = '\' then
-      Inc(BsRun)
-    else if C = '"' then
-    begin
-      for J := 1 to BsRun do
-        Body := Body + '\\';
-      Body := Body + '\"';
-      BsRun := 0;
-    end
-    else
-    begin
-      for J := 1 to BsRun do
-        Body := Body + '\';
-      BsRun := 0;
-      Body := Body + C;
-    end;
-  end;
-  { Trailing backslashes precede the argument's closing quote, so they all
-    need to be doubled. }
-  for I := 1 to BsRun do
-    Body := Body + '\\';
-  Result := '"' + Body + '"';
-end;
-
-function FormatSvcError(Code: Integer): String;
+function FormatSvcError(Code: Cardinal): String;
 var
   Hint: String;
 begin
   case Code of
     5:    Hint := 'Access denied. Re-run the installer as Administrator.';
-    1057: Hint := 'The account name or password is invalid.';
+    87:   Hint := 'Invalid parameter passed to CreateService. This is a bug — please share the install log.';
+    1057: Hint := 'The account name or password is invalid. Verify that the password you typed into the Service Account page matches exactly — remember the field is masked, so a typo or stray modifier key would not be visible.';
     1069: Hint := 'The service account lacks the "Log on as a service" right. Grant it via secpol.msc → Local Policies → User Rights Assignment.';
-    1073: Hint := 'A HirschNotify service is already registered on this machine.';
+    1073: Hint := 'A HirschNotify service is already registered on this machine. Uninstall it first, or re-run setup to upgrade.';
   else
-    Hint := 'Re-run the sc.exe command manually from an elevated prompt to see the full error text.';
+    Hint := 'Run the installer with /LOG="%USERPROFILE%\Desktop\hnotify-install.log" and share the log file.';
   end;
-  Result := 'sc.exe exited with code ' + IntToStr(Code) + '.' + #13#10#13#10 + Hint;
+  Result := 'Win32 error ' + IntToStr(Code) + '.' + #13#10#13#10 + Hint;
 end;
 
 function RegisterService(): Boolean;
 var
   ExitCode: Integer;
-  Params, BinPathValue: String;
+  Account, Password, BinPath, RawAccount: String;
+  hSCM, hSvc, LastErr: Cardinal;
 begin
   Result := False;
 
-  { binPath's value must itself contain quotes around the exe path (so the
-    service manager knows where the path ends and the --urls arg begins).
-    We build that value as plain text, then let QuoteArg wrap the whole
-    thing as one argv entry — QuoteArg will escape the inner quotes as \"
-    per CRT rules. }
-  BinPathValue := '"' + ExpandConstant('{app}') + '\HirschNotify.exe" --urls http://0.0.0.0:' + PortPage.Values[0];
+  RawAccount := AccountPage.Values[0];
+  Account := Trim(RawAccount);
+  Password := AccountPage.Values[1];
+  BinPath := '"' + ExpandConstant('{app}') + '\HirschNotify.exe" --urls http://0.0.0.0:' + PortPage.Values[0];
 
-  Params := 'create HirschNotify' +
-            ' binPath= ' + QuoteArg(BinPathValue) +
-            ' DisplayName= ' + QuoteArg('Hirsch Notify') +
-            ' start= auto' +
-            ' obj= ' + QuoteArg(AccountPage.Values[0]) +
-            ' password= ' + QuoteArg(AccountPage.Values[1]);
+  if RawAccount <> Account then
+    Log('RegisterService: trimmed ' + IntToStr(Length(RawAccount) - Length(Account)) +
+        ' whitespace char(s) from the username.');
 
-  if not Exec(ExpandConstant('{sys}\sc.exe'), Params, '', SW_HIDE,
-              ewWaitUntilTerminated, ExitCode) then
+  Log('RegisterService: account="' + Account + '" length=' + IntToStr(Length(Account)));
+  Log('RegisterService: password length=' + IntToStr(Length(Password)));
+  Log('RegisterService: binPath=' + BinPath);
+  Log('RegisterService: calling CreateServiceW directly via advapi32 (no sc.exe).');
+
+  hSCM := OpenSCManagerW(0, 0, SC_MANAGER_ALL_ACCESS);
+  if hSCM = 0 then
   begin
-    MsgBox('Could not launch sc.exe to register the HirschNotify service.',
+    LastErr := Win32GetLastError();
+    Log('RegisterService: OpenSCManagerW failed, GetLastError=' + IntToStr(LastErr));
+    MsgBox('Could not open the Service Control Manager (Win32 error ' + IntToStr(LastErr) +
+           ').' + #13#10#13#10 + 'Re-run the installer as Administrator.',
            mbError, MB_OK);
     Exit;
   end;
 
-  if ExitCode <> 0 then
-  begin
-    MsgBox('Failed to register the HirschNotify Windows service.' + #13#10#13#10 +
-           FormatSvcError(ExitCode),
-           mbError, MB_OK);
-    Exit;
+  try
+    hSvc := CreateServiceW(
+      hSCM,
+      'HirschNotify',
+      'Hirsch Notify',
+      SERVICE_ALL_ACCESS,
+      SERVICE_WIN32_OWN_PROCESS,
+      SERVICE_AUTO_START,
+      SERVICE_ERROR_NORMAL,
+      BinPath,
+      0,           { lpLoadOrderGroup = NULL }
+      0,           { lpdwTagId = NULL }
+      0,           { lpDependencies = NULL }
+      Account,
+      Password);
+
+    if hSvc = 0 then
+    begin
+      LastErr := Win32GetLastError();
+      Log('RegisterService: CreateServiceW failed, GetLastError=' + IntToStr(LastErr));
+      MsgBox('Failed to register the HirschNotify Windows service.' + #13#10#13#10 +
+             FormatSvcError(LastErr),
+             mbError, MB_OK);
+      Exit;
+    end;
+
+    Log('RegisterService: CreateServiceW succeeded (service handle=' + IntToStr(hSvc) + ').');
+    CloseServiceHandle(hSvc);
+
+    { Description and failure actions take no user input, so there's nothing
+      to escape — safe to route through sc.exe. Non-fatal if they fail. }
+    Exec(ExpandConstant('{sys}\sc.exe'),
+         'description HirschNotify "Monitors Velocity access control events and sends push notifications."',
+         '', SW_HIDE, ewWaitUntilTerminated, ExitCode);
+
+    Exec(ExpandConstant('{sys}\sc.exe'),
+         'failure HirschNotify reset= 86400 actions= restart/60000/restart/60000/restart/60000',
+         '', SW_HIDE, ewWaitUntilTerminated, ExitCode);
+
+    Result := True;
+  finally
+    CloseServiceHandle(hSCM);
   end;
-
-  { Description and failure actions are cosmetic — don't block the install
-    if they fail. }
-  Exec(ExpandConstant('{sys}\sc.exe'),
-       'description HirschNotify ' + QuoteArg('Monitors Velocity access control events and sends push notifications.'),
-       '', SW_HIDE, ewWaitUntilTerminated, ExitCode);
-
-  Exec(ExpandConstant('{sys}\sc.exe'),
-       'failure HirschNotify reset= 86400 actions= restart/60000/restart/60000/restart/60000',
-       '', SW_HIDE, ewWaitUntilTerminated, ExitCode);
-
-  Result := True;
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
