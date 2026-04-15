@@ -199,28 +199,6 @@ try
             );
         ");
 
-        // Drop legacy notification columns from Recipients (PhoneNumber, PushoverUserKey, NotifyVia)
-        // that were defined in the initial migration but never used.
-        try
-        {
-            var columns = new[] { "PhoneNumber", "PushoverUserKey", "NotifyVia" };
-            foreach (var col in columns)
-            {
-                // Check if column exists before trying to drop it
-                var exists = db.Database.SqlQueryRaw<int>(
-                    $"SELECT COUNT(*) AS \"Value\" FROM pragma_table_info('Recipients') WHERE name = '{col}'")
-                    .FirstOrDefault();
-                if (exists > 0)
-                {
-                    db.Database.ExecuteSqlRaw($"ALTER TABLE Recipients DROP COLUMN {col}");
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            Log.Warning(ex, "Could not drop legacy columns from Recipients (non-fatal)");
-        }
-
         // Apply installer settings if install-config.json exists
         var installConfigPath = Path.Combine(AppContext.BaseDirectory, "install-config.json");
         if (File.Exists(installConfigPath))

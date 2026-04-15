@@ -90,9 +90,6 @@ namespace HirschNotify.Data.Migrations
                     Id = table.Column<int>(type: "INTEGER", nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
                     Name = table.Column<string>(type: "TEXT", maxLength: 100, nullable: false),
-                    PhoneNumber = table.Column<string>(type: "TEXT", maxLength: 20, nullable: false),
-                    PushoverUserKey = table.Column<string>(type: "TEXT", maxLength: 50, nullable: true),
-                    NotifyVia = table.Column<string>(type: "TEXT", maxLength: 10, nullable: false, defaultValue: "SMS"),
                     IsActive = table.Column<bool>(type: "INTEGER", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: false)
