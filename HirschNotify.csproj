@@ -5,6 +5,9 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>dotnet-HirschNotify-a4e27f8c-501e-4363-95a2-03e59be08092</UserSecretsId>
+    <!-- Required by the LibraryImport source generator used for Win32
+         P/Invokes in Services/Windows/ServiceAccountPInvoke.cs. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
@@ -32,6 +35,11 @@
     <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
     <PackageReference Include="System.Data.SqlClient" Version="4.9.1" />
     <PackageReference Include="System.ServiceProcess.ServiceController" Version="10.0.5" />
+    <!-- Required on disk for the runtime service-account changer (ACL grants
+         on {app}/Logs/Data/Keys). NU1510 flags it as redundant for .NET 10
+         code but the FileSystemAclExtensions method set only ships from this
+         package. Do not remove. -->
+    <PackageReference Include="System.IO.FileSystem.AccessControl" Version="5.0.0" />
     <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.5" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.5" />
     <!-- Required on disk for VelocityAdapter (net48 assembly) probing, even though

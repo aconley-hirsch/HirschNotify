@@ -340,6 +340,18 @@
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
             Actions
         </a>
+        @if (Model.IsWindows)
+        {
+            <a href="#serviceaccount">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                Service Account
+            </a>
+        }
+        <div class="nav-divider"></div>
+        <a href="#about">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            About
+        </a>
     </nav>
 
     <div class="settings-content">
@@ -408,7 +420,7 @@
                                     Service Account
                                     <span class="velocity-account-identity">@Model.CurrentServiceAccount</span>
                                 </div>
-                                <p>This service connects to Velocity using <strong>Windows integrated authentication</strong> — the SQL session is opened with the identity above. For Velocity Adapter mode to work, this account must <strong>also be configured as a Velocity Operator</strong> inside Velocity. To change the service account, stop the HirschNotify service in <code>services.msc</code>, set the Log On account, and start it again.</p>
+                                <p>This service connects to Velocity using <strong>Windows integrated authentication</strong> — the SQL session is opened with the identity above. For Velocity Adapter mode to work, this account must <strong>also be configured as a Velocity Operator</strong> inside Velocity. To change the service account, scroll down to the <a href="#serviceaccount">Service Account</a> section.</p>
                             </div>
                         </div>
 
@@ -636,6 +648,104 @@
                             <button type="submit" class="outline">Send Test Notification</button>
                         </form>
                     </div>
+                </div>
+            </div>
+        </section>
+
+        @if (Model.IsWindows)
+        {
+            <!-- Service Account -->
+            <section id="serviceaccount" class="settings-section">
+                <div class="settings-section-header">
+                    <h2>Service Account</h2>
+                    <p>Change the Windows account the HirschNotify service runs as. The service will restart under the new credentials — this page will reconnect automatically in ~15 seconds.</p>
+                </div>
+                <div class="settings-card">
+                    <div class="settings-card-body">
+                        <div class="velocity-account-callout">
+                            <div class="velocity-account-icon">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                            </div>
+                            <div class="velocity-account-body">
+                                <div class="velocity-account-title">
+                                    Currently running as
+                                    <span class="velocity-account-identity">@Model.CurrentServiceAccount</span>
+                                </div>
+                                <p>Applying a new account will grant it <strong>Log on as a service</strong>, grant read/execute on the install directory (plus modify on <code>Logs</code>, <code>Data</code>, and <code>Keys</code>), update the SCM record, and restart the service. Encrypted settings are preserved because DPAPI keys are machine-scoped. If the new account fails to start the service, HirschNotify automatically rolls back to <code>LocalSystem</code>.</p>
+                            </div>
+                        </div>
+
+                        <form method="post" asp-page-handler="SetServiceAccount" autocomplete="off"
+                              onsubmit="return confirm('Change the service account and restart? This browser session will disconnect for ~15 seconds.');">
+                            <div class="field-grid">
+                                <div class="field col-6">
+                                    <label for="svcUsername">Username</label>
+                                    <input type="text" id="svcUsername" name="username" placeholder="DOMAIN\Username" required autocomplete="off" />
+                                    <small>Use <code>DOMAIN\Username</code> for domain accounts, <code>.\Username</code> for local accounts.</small>
+                                </div>
+                                <div class="field col-6">
+                                    <label for="svcPassword">Password</label>
+                                    <input type="password" id="svcPassword" name="password" required autocomplete="new-password" />
+                                    <small>Not stored — passed directly to the Service Control Manager.</small>
+                                </div>
+                            </div>
+                            <div style="padding-top: 1rem;">
+                                <button type="submit" class="btn-danger">Apply &amp; Restart</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </section>
+        }
+
+        <!-- About -->
+        @{
+            var updateAvailable = Model.UpdateState.IsUpdateAvailable();
+            var latestManifest = Model.UpdateState.LatestManifest;
+            var lastCheckedText = Model.UpdateState.LastCheckedAt?.ToLocalTime().ToString("g") ?? "never";
+            var lastCheckError = Model.UpdateState.LastCheckError;
+        }
+        <section id="about" class="settings-section">
+            <div class="settings-section-header">
+                <h2>About</h2>
+                <p>Version information and update status. HirschNotify automatically checks for new releases every 6 hours.</p>
+            </div>
+            <div class="settings-card">
+                <div class="settings-card-body">
+                    <dl class="about-grid">
+                        <dt>Current version</dt>
+                        <dd><code>v@HirschNotify.Services.UpdateState.CurrentVersion</code></dd>
+
+                        <dt>Last checked</dt>
+                        <dd>@lastCheckedText</dd>
+
+                        @if (!string.IsNullOrEmpty(lastCheckError) && !updateAvailable)
+                        {
+                            <dt>Status</dt>
+                            <dd class="about-error">Update check failed — @lastCheckError</dd>
+                        }
+                    </dl>
+
+                    @if (updateAvailable && latestManifest is not null)
+                    {
+                        <div class="about-update-available">
+                            <div class="about-update-header">
+                                <strong>v@latestManifest.Version is available</strong>
+                                <form method="post" asp-page-handler="InstallUpdate"
+                                      onsubmit="return confirm('Install v@latestManifest.Version now? The service will stop, files will be replaced, and the service will restart. This browser session will reconnect in ~30 seconds.');">
+                                    <button type="submit">Update to v@latestManifest.Version</button>
+                                </form>
+                            </div>
+                            <details class="about-release-notes">
+                                <summary>Release notes</summary>
+                                <pre class="release-notes-body">@latestManifest.ReleaseNotes</pre>
+                            </details>
+                        </div>
+                    }
+                    else if (!updateAvailable && string.IsNullOrEmpty(lastCheckError))
+                    {
+                        <p class="about-uptodate">You're on the latest version.</p>
+                    }
                 </div>
             </div>
         </section>

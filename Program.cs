@@ -4,6 +4,7 @@ using HirschNotify.Services;
 using HirschNotify.Services.Health;
 using HirschNotify.Services.Health.Sources;
 using HirschNotify.Workers;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
@@ -56,6 +57,20 @@ try
         options.SlidingExpiration = true;
     });
 
+    // Data protection — keys persisted under the install directory and wrapped
+    // with LocalMachine DPAPI so encrypted settings survive service account
+    // changes. Without this, the default per-user DPAPI scope would destroy
+    // every stored secret the moment an admin swaps the service account.
+    var keysDir = new DirectoryInfo(Path.Combine(AppContext.BaseDirectory, "Keys"));
+    if (!keysDir.Exists) keysDir.Create();
+    var dataProtection = builder.Services.AddDataProtection()
+        .SetApplicationName("HirschNotify")
+        .PersistKeysToFileSystem(keysDir);
+    if (OperatingSystem.IsWindows())
+    {
+        dataProtection.ProtectKeysWithDpapi(protectToLocalMachine: true);
+    }
+
     // Application services
     builder.Services.AddScoped<ISettingsService, SettingsService>();
     builder.Services.AddScoped<RelayUrlResolver>();
@@ -102,6 +117,14 @@ try
     builder.Services.AddSingleton<IEventProcessor, EventProcessor>();
     builder.Services.AddSingleton<IVelocityServerAccessor, VelocityServerAccessor>();
 
+    // In-app updater — HirschRelay proxies the private GitHub repo so the
+    // instance doesn't need a PAT. UpdateState is a singleton cached by
+    // UpdateCheckerWorker on a 6-hour poll, consumed by _Layout (banner)
+    // and Settings > About.
+    builder.Services.AddSingleton<UpdateState>();
+    builder.Services.AddHttpClient<IUpdateChecker, UpdateChecker>();
+    builder.Services.AddHostedService<UpdateCheckerWorker>();
+
     // Health framework — SRE-facing Velocity health metrics pipeline.
     // IHealthSource implementations are registered as singletons so the worker
     // can enumerate them via DI; add new sources (event log, etc.) here.
@@ -112,6 +135,11 @@ try
     if (OperatingSystem.IsWindows())
     {
         builder.Services.AddSingleton<IHealthSource, WindowsServiceHealthSource>();
+        builder.Services.AddSingleton<IServiceAccountManager, HirschNotify.Services.Windows.ServiceAccountManager>();
+    }
+    else
+    {
+        builder.Services.AddSingleton<IServiceAccountManager, UnsupportedServiceAccountManager>();
     }
 
     // Background workers
@@ -227,6 +255,24 @@ try
     app.UseAuthentication();
     app.UseAuthorization();
     app.MapRazorPages();
+
+    // Unauthenticated liveness probe. Used by the _Layout reconnect script
+    // to detect when the service is back up after a service-account change
+    // or auto-update reinstall — at that point the admin's browser session
+    // is gone, so this endpoint can't require auth.
+    app.MapGet("/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
+
+    // Per-version dismissal for the update banner. Called by the inline
+    // fetch() in _Layout.cshtml. Stores the dismissed version server-side
+    // so it survives browser cache clears — the banner re-arms automatically
+    // when a newer version ships.
+    app.MapPost("/updates/dismiss", async (DismissUpdateRequest req, ISettingsService settings) =>
+    {
+        if (string.IsNullOrWhiteSpace(req.Version))
+            return Results.BadRequest();
+        await settings.SetAsync("Updates:LastDismissedVersion", req.Version);
+        return Results.NoContent();
+    }).RequireAuthorization();
 
     app.Run();
 }

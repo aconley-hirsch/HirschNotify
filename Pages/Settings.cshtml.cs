@@ -16,6 +16,9 @@ public class SettingsModel : PageModel
     private readonly IWebSocketAuthService _authService;
     private readonly IRelayClient _relayClient;
     private readonly RelayUrlResolver _relayUrlResolver;
+    private readonly IServiceAccountManager _serviceAccountManager;
+    private readonly UpdateState _updateState;
+    private readonly IUpdateChecker _updateChecker;
     private readonly AppDbContext _db;
     private readonly ILogger<SettingsModel> _logger;
 
@@ -25,6 +28,9 @@ public class SettingsModel : PageModel
         IWebSocketAuthService authService,
         IRelayClient relayClient,
         RelayUrlResolver relayUrlResolver,
+        IServiceAccountManager serviceAccountManager,
+        UpdateState updateState,
+        IUpdateChecker updateChecker,
         AppDbContext db,
         ILogger<SettingsModel> logger)
     {
@@ -33,9 +39,18 @@ public class SettingsModel : PageModel
         _authService = authService;
         _relayClient = relayClient;
         _relayUrlResolver = relayUrlResolver;
+        _serviceAccountManager = serviceAccountManager;
+        _updateState = updateState;
+        _updateChecker = updateChecker;
         _db = db;
         _logger = logger;
     }
+
+    public UpdateState UpdateState => _updateState;
+
+    /// <summary>True on Windows hosts, used by the Razor template to hide the
+    /// Service Account card on non-Windows dev boxes.</summary>
+    public bool IsWindows => OperatingSystem.IsWindows();
 
     public Dictionary<string, string> AllSettings { get; set; } = new();
 
@@ -303,6 +318,63 @@ public class SettingsModel : PageModel
         await ClearRequestKeysAsync();
 
         TempData["Success"] = "Unregistered from relay.";
+        return RedirectToPage();
+    }
+
+    public async Task<IActionResult> OnPostInstallUpdateAsync()
+    {
+        var manifest = _updateState.LatestManifest;
+        if (manifest is null || !_updateState.IsUpdateAvailable())
+        {
+            TempData["Error"] = "No update is currently available.";
+            return RedirectToPage();
+        }
+
+        try
+        {
+            var setupPath = await _updateChecker.DownloadAsync(manifest, HttpContext.RequestAborted);
+            _updateChecker.InstallAndExit(setupPath);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to install update {Version}", manifest.Version);
+            TempData["Error"] = $"Failed to start installer: {ex.Message}";
+            return RedirectToPage();
+        }
+
+        TempData["Success"] = $"Installing v{manifest.Version} — this page will reconnect in ~30 seconds.";
+        TempData["Restarting"] = true;
+        return RedirectToPage();
+    }
+
+    public async Task<IActionResult> OnPostSetServiceAccountAsync(string username, string password)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            TempData["Error"] = "Service account management is only supported on Windows.";
+            return RedirectToPage();
+        }
+
+        var validation = await _serviceAccountManager.ValidateAsync(username, password, HttpContext.RequestAborted);
+        if (!validation.IsValid)
+        {
+            TempData["Error"] = validation.ErrorMessage ?? "Credential validation failed.";
+            return RedirectToPage();
+        }
+
+        try
+        {
+            await _serviceAccountManager.ApplyAsync(username, password, HttpContext.RequestAborted);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to apply new service account {Account}", username);
+            TempData["Error"] = $"Failed to update service account: {ex.Message}";
+            return RedirectToPage();
+        }
+
+        TempData["Success"] = "Service account updated. Restarting — this page will reconnect in ~15 seconds.";
+        TempData["Restarting"] = true;
         return RedirectToPage();
     }
 

@@ -1,4 +1,4 @@
-name: Build & Release MSI
+name: Build & Release Installer
 
 on:
   push:
@@ -36,49 +36,51 @@ jobs:
           echo "Building version: ${VERSION}"
 
       # ── Build the application ─────────────────────────
-      # Publish does its own compile so we don't run a separate build step.
-      # The --no-build + --self-contained combination is a known foot-gun
-      # that produces a publish folder missing the bundled runtime DLLs,
-      # which causes "No frameworks were found" at service start time.
       - name: Restore HirschNotify
         run: dotnet restore HirschNotify.csproj -r win-x64
 
       - name: Publish HirschNotify (self-contained win-x64)
-        run: dotnet publish HirschNotify.csproj -c Release -r win-x64 --self-contained --no-restore -p:PublishSingleFile=false
+        run: dotnet publish HirschNotify.csproj -c Release -r win-x64 --self-contained --no-restore -p:PublishSingleFile=false -p:Version=${{ steps.version.outputs.version }}
 
       # ── Build the installer ───────────────────────────
-      - name: Restore Installer
-        run: dotnet restore installer/HirschNotify.Installer.wixproj
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+        shell: pwsh
 
-      - name: Build Installer
-        run: dotnet build installer/HirschNotify.Installer.wixproj -c Release --no-restore -p:Version=${{ steps.version.outputs.version }}
-
-      # ── Locate and publish the MSI ────────────────────
-      - name: Locate MSI
-        id: find_msi
+      - name: Build Setup.exe
         shell: pwsh
         run: |
-          $msi = Get-ChildItem -Path installer -Recurse -Filter *.msi | Select-Object -First 1
-          if (-not $msi) {
-            Write-Error "No MSI was produced"
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
+            /DMyAppVersion=${{ steps.version.outputs.version }} `
+            installer\HirschNotify.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed with exit code $LASTEXITCODE" }
+
+      # ── Locate and publish the EXE ────────────────────
+      - name: Locate Setup.exe
+        id: find_exe
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path installer\Output -Filter *.exe | Select-Object -First 1
+          if (-not $exe) {
+            Write-Error "No Setup.exe was produced"
             exit 1
           }
-          Write-Host "Found MSI at $($msi.FullName)"
-          "msi_path=$($msi.FullName)" >> $env:GITHUB_OUTPUT
-          "msi_name=$($msi.Name)" >> $env:GITHUB_OUTPUT
+          Write-Host "Found installer at $($exe.FullName)"
+          "exe_path=$($exe.FullName)" >> $env:GITHUB_OUTPUT
+          "exe_name=$($exe.Name)" >> $env:GITHUB_OUTPUT
 
-      - name: Upload MSI artifact
+      - name: Upload Setup.exe artifact
         uses: actions/upload-artifact@v4
         with:
           name: HirschNotify-Installer
-          path: ${{ steps.find_msi.outputs.msi_path }}
+          path: ${{ steps.find_exe.outputs.exe_path }}
           retention-days: 90
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ steps.find_msi.outputs.msi_path }}
+          files: ${{ steps.find_exe.outputs.exe_path }}
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

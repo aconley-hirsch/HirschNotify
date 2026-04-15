@@ -1,3 +1,5 @@
+@inject HirschNotify.Services.UpdateState UpdateState
+@inject HirschNotify.Services.ISettingsService SettingsSvc
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -9,7 +11,30 @@
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="~/css/site.css" />
 </head>
-<body>
+@{
+    // TempData["Restarting"] is set by handlers that kick off a service
+    // restart (service account change, in-app updater). The inline script
+    // below polls /health every 2s when this flag is set and reloads the
+    // page on the first successful response.
+    var restartingAttr = TempData["Restarting"] is true ? "true" : null;
+
+    // Update banner — renders when an update is available AND the user
+    // hasn't already dismissed this specific version. Per-version dismissal
+    // is stored server-side in Updates:LastDismissedVersion, so a newer
+    // release automatically re-arms the banner even after a previous
+    // dismissal.
+    HirschNotify.Services.UpdateManifest? updateToShow = null;
+    if (User.Identity?.IsAuthenticated == true && UpdateState.IsUpdateAvailable())
+    {
+        var dismissed = await SettingsSvc.GetAsync("Updates:LastDismissedVersion");
+        var latest = UpdateState.LatestManifest;
+        if (latest is not null && latest.Version != dismissed)
+        {
+            updateToShow = latest;
+        }
+    }
+}
+<body data-restarting="@restartingAttr">
     @if (User.Identity?.IsAuthenticated == true)
     {
         <aside class="sidebar">
@@ -57,6 +82,21 @@
         </aside>
 
         <div class="main-wrapper">
+            @if (updateToShow is not null)
+            {
+                <div id="updateBanner" class="update-banner" data-version="@updateToShow.Version">
+                    <div class="update-banner-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M5 12l7-7 7 7"/></svg>
+                    </div>
+                    <div class="update-banner-body">
+                        <strong>Update available: v@updateToShow.Version</strong>
+                        <span> — <a href="/Settings#about">View details</a> to install now.</span>
+                    </div>
+                    <button type="button" class="update-banner-dismiss" onclick="dismissUpdateBanner('@updateToShow.Version')" aria-label="Dismiss">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                </div>
+            }
             <header class="page-header">
                 <h1>@ViewData["Title"]</h1>
                 @await RenderSectionAsync("PageActions", required: false)
@@ -75,6 +115,49 @@
 
     <script src="~/htmx.min.js"></script>
     <script src="~/alpine.min.js" defer></script>
+    <script>
+        function dismissUpdateBanner(version) {
+            fetch('/updates/dismiss', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ version: version })
+            }).finally(function () {
+                var el = document.getElementById('updateBanner');
+                if (el) el.remove();
+            });
+        }
+    </script>
+    <script>
+        // Reconnect-after-restart poller. Activates when a handler sets
+        // TempData["Restarting"] = true (service account change, auto-update
+        // reinstall). Polls /health every 2s, reloads on first 200 response.
+        (function () {
+            if (document.body.dataset.restarting !== 'true') return;
+
+            var overlay = document.createElement('div');
+            overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;color:#fff;font-family:Manrope,sans-serif;font-size:1.1rem;';
+            overlay.innerHTML = '<div style="background:#1a1f2e;padding:2rem 3rem;border-radius:12px;text-align:center;"><div style="font-weight:600;margin-bottom:0.75rem;">Service restarting</div><div style="opacity:0.8;font-size:0.9rem;">Reconnecting…</div></div>';
+            document.body.appendChild(overlay);
+
+            var attempts = 0;
+            function poll() {
+                attempts++;
+                fetch('/health', { cache: 'no-store' })
+                    .then(function (r) {
+                        if (r.ok) { window.location.reload(); return; }
+                        setTimeout(poll, 2000);
+                    })
+                    .catch(function () {
+                        if (attempts > 60) { overlay.querySelector('div > div:last-child').textContent = 'Still waiting…'; }
+                        setTimeout(poll, 2000);
+                    });
+            }
+            // Wait a beat before the first probe so the restart helper has a
+            // chance to actually stop the service — otherwise the first poll
+            // hits the still-running old process and reloads immediately.
+            setTimeout(poll, 3000);
+        })();
+    </script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>
