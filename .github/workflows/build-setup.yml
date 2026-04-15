@@ -44,17 +44,15 @@ jobs:
       - name: Restore HirschNotify
         run: dotnet restore HirschNotify.csproj -r win-x64
 
-      - name: Publish HirschNotify (self-contained win-x64, single-file)
-        # PublishSingleFile=true bundles the framework + app DLLs into
-        # HirschNotify.exe so the install folder isn't littered with ~280
-        # framework assemblies. IncludeNativeLibrariesForSelfExtract=true
-        # pulls the ~90 native libs (e_sqlite3.dll, msquic.dll, etc.) into
-        # the bundle too — they get extracted under %LOCALAPPDATA% on
-        # first run. The plugin loader at Program.cs:82-111 keeps working
-        # because AppContext.BaseDirectory for a single-file .exe resolves
-        # to the directory containing the .exe (not the extract dir) as
-        # long as IncludeAllContentForSelfExtract stays at its default.
-        run: dotnet publish HirschNotify.csproj -c Release -r win-x64 --self-contained --no-restore -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+      - name: Publish HirschNotify (self-contained win-x64)
+        # Plain self-contained publish — framework + app DLLs ship as loose
+        # files. Single-file bundling was tried and reverted: VelocityAdapter
+        # transitively loads NLog 4.6.7, which calls Assembly.CodeBase in an
+        # unguarded path. CodeBase throws NotSupportedException on any
+        # assembly resolved from a single-file bundle, so MyLogManager.Instance
+        # fails on first touch and every Velocity connection attempt errors
+        # with "The type initializer for VelocityAdapter.NLogger threw".
+        run: dotnet publish HirschNotify.csproj -c Release -r win-x64 --self-contained --no-restore
 
       # ── Build the installer ───────────────────────────
       - name: Install Inno Setup
