@@ -32,6 +32,20 @@
     </Reference>
   </ItemGroup>
 
+  <!-- VelocityAdapter.NLogger's static initializer calls Assembly.CodeBase
+       (legacy NLog-config-locating pattern), which throws NotSupportedException
+       on any assembly pulled from a single-file bundle. Keep VelocityAdapter.dll
+       as a loose file in the publish output so CodeBase resolves to a real
+       file:// URI and the adapter can initialize. -->
+  <Target Name="ExcludeVelocityAdapterFromSingleFile" AfterTargets="ComputeFilesToPublish">
+    <ItemGroup>
+      <ResolvedFileToPublish Update="@(ResolvedFileToPublish)"
+                             Condition="'%(Filename)' == 'VelocityAdapter'">
+        <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
+
   <ItemGroup>
     <Compile Remove="decompiled.cs" />
     <None Include="decompiled.cs" />
