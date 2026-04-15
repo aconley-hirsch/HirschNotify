@@ -239,6 +239,39 @@ begin
     Result := PortPage.Values[0];
 end;
 
+{ For local (non-domain) accounts, CreateServiceW wants ".\Username" — not
+  "MACHINE\Username". sc.exe appears to normalize it internally, but when we
+  call CreateServiceW directly the machine-name form makes LSA's built-in
+  domain lookup fail with error 1057. Translate the machine-qualified form
+  to the dot-qualified form before handing it off. }
+function NormalizeServiceAccount(const RawAccount: String): String;
+var
+  SlashPos: Integer;
+  DomainPart, UserPart, CompName: String;
+begin
+  Result := RawAccount;
+  SlashPos := Pos('\', RawAccount);
+  if SlashPos <= 0 then
+    Exit;
+
+  DomainPart := Copy(RawAccount, 1, SlashPos - 1);
+  UserPart   := Copy(RawAccount, SlashPos + 1, MaxInt);
+
+  if DomainPart = '.' then
+    Exit;
+
+  CompName := ExpandConstant('{computername}');
+  if CompareText(DomainPart, CompName) = 0 then
+  begin
+    Result := '.\' + UserPart;
+    Log('NormalizeServiceAccount: "' + RawAccount + '" -> "' + Result +
+        '" (domain part matched local computer name "' + CompName + '").');
+  end
+  else
+    Log('NormalizeServiceAccount: leaving "' + RawAccount + '" as-is (domain "' +
+        DomainPart + '" != computer name "' + CompName + '").');
+end;
+
 function FormatSvcError(Code: Cardinal): String;
 var
   Hint: String;
@@ -264,13 +297,12 @@ begin
   Result := False;
 
   RawAccount := AccountPage.Values[0];
-  Account := Trim(RawAccount);
+  Account := NormalizeServiceAccount(Trim(RawAccount));
   Password := AccountPage.Values[1];
   BinPath := '"' + ExpandConstant('{app}') + '\HirschNotify.exe" --urls http://0.0.0.0:' + PortPage.Values[0];
 
-  if RawAccount <> Account then
-    Log('RegisterService: trimmed ' + IntToStr(Length(RawAccount) - Length(Account)) +
-        ' whitespace char(s) from the username.');
+  if Trim(RawAccount) <> RawAccount then
+    Log('RegisterService: trimmed whitespace from username.');
 
   Log('RegisterService: account="' + Account + '" length=' + IntToStr(Length(Account)));
   Log('RegisterService: password length=' + IntToStr(Length(Password)));
