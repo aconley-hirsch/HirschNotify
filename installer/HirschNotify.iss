@@ -26,7 +26,7 @@ PrivilegesRequired=admin
 OutputBaseFilename=HirschNotifySetup-v{#MyAppVersion}
 OutputDir=Output
 SetupIconFile=assets\app-icon.ico
-WizardImageFile=assets\wizard-image.bmp
+WizardImageFile=assets\wizard-large.bmp
 WizardSmallImageFile=assets\wizard-small.bmp
 WizardImageStretch=no
 Compression=lzma2/ultra
@@ -45,22 +45,9 @@ Name: "{app}\Data"; Permissions: users-modify
 Name: "{app}\Keys"; Permissions: users-modify
 
 [Run]
-; Service registration — fresh install only.
-Filename: "{sys}\sc.exe"; \
-  Parameters: "create HirschNotify binPath= ""\""{app}\HirschNotify.exe\"" --urls http://0.0.0.0:{code:GetPort}"" DisplayName= ""Hirsch Notify"" start= auto obj= ""{code:GetSvcAccount}"" password= ""{code:GetSvcPassword}"""; \
-  Flags: runhidden; \
-  Check: IsFreshInstall; \
-  StatusMsg: "Registering Windows service..."
-
-Filename: "{sys}\sc.exe"; \
-  Parameters: "description HirschNotify ""Monitors Velocity access control events and sends push notifications."""; \
-  Flags: runhidden; \
-  Check: IsFreshInstall
-
-Filename: "{sys}\sc.exe"; \
-  Parameters: "failure HirschNotify reset= 86400 actions= restart/60000/restart/60000/restart/60000"; \
-  Flags: runhidden; \
-  Check: IsFreshInstall
+; Service registration (create + description + failure actions) runs from
+; CurStepChanged → RegisterService so sc.exe's exit code and stderr are
+; surfaced to the user on failure instead of being swallowed by runhidden.
 
 ; Firewall rule — fresh install only.
 Filename: "{sys}\netsh.exe"; \
@@ -210,20 +197,118 @@ begin
     Result := PortPage.Values[0];
 end;
 
-function GetSvcAccount(Value: String): String;
+{ CRT-compatible argv quoting, per the rules documented at
+  https://learn.microsoft.com/cpp/c-language/parsing-c-command-line-arguments
+  The value is wrapped in quotes so it arrives at sc.exe as a single argv
+  entry, even if it contains spaces, ampersands, carets, or other shell
+  metacharacters. A backslash is only special when it precedes a quote (or
+  the closing quote of the argument), in which case every backslash in the
+  run must be doubled so CRT parses them as literal backslashes.
+
+  Examples:
+    P@ss"w^rd&1   →  "P@ss\"w^rd&1"
+    a\b           →  "a\b"
+    a\"b          →  "a\\\"b"
+    a\            →  "a\\"
+}
+function QuoteArg(const S: String): String;
+var
+  I, BsRun, J: Integer;
+  C: Char;
+  Body: String;
 begin
-  if WasServicePresent then
-    Result := 'LocalSystem'
-  else
-    Result := AccountPage.Values[0];
+  Body := '';
+  BsRun := 0;
+  for I := 1 to Length(S) do
+  begin
+    C := S[I];
+    if C = '\' then
+      Inc(BsRun)
+    else if C = '"' then
+    begin
+      for J := 1 to BsRun do
+        Body := Body + '\\';
+      Body := Body + '\"';
+      BsRun := 0;
+    end
+    else
+    begin
+      for J := 1 to BsRun do
+        Body := Body + '\';
+      BsRun := 0;
+      Body := Body + C;
+    end;
+  end;
+  { Trailing backslashes precede the argument's closing quote, so they all
+    need to be doubled. }
+  for I := 1 to BsRun do
+    Body := Body + '\\';
+  Result := '"' + Body + '"';
 end;
 
-function GetSvcPassword(Value: String): String;
+function FormatSvcError(Code: Integer): String;
+var
+  Hint: String;
 begin
-  if WasServicePresent then
-    Result := ''
+  case Code of
+    5:    Hint := 'Access denied. Re-run the installer as Administrator.';
+    1057: Hint := 'The account name or password is invalid.';
+    1069: Hint := 'The service account lacks the "Log on as a service" right. Grant it via secpol.msc → Local Policies → User Rights Assignment.';
+    1073: Hint := 'A HirschNotify service is already registered on this machine.';
   else
-    Result := AccountPage.Values[1];
+    Hint := 'Re-run the sc.exe command manually from an elevated prompt to see the full error text.';
+  end;
+  Result := 'sc.exe exited with code ' + IntToStr(Code) + '.' + #13#10#13#10 + Hint;
+end;
+
+function RegisterService(): Boolean;
+var
+  ExitCode: Integer;
+  Params, BinPathValue: String;
+begin
+  Result := False;
+
+  { binPath's value must itself contain quotes around the exe path (so the
+    service manager knows where the path ends and the --urls arg begins).
+    We build that value as plain text, then let QuoteArg wrap the whole
+    thing as one argv entry — QuoteArg will escape the inner quotes as \"
+    per CRT rules. }
+  BinPathValue := '"' + ExpandConstant('{app}') + '\HirschNotify.exe" --urls http://0.0.0.0:' + PortPage.Values[0];
+
+  Params := 'create HirschNotify' +
+            ' binPath= ' + QuoteArg(BinPathValue) +
+            ' DisplayName= ' + QuoteArg('Hirsch Notify') +
+            ' start= auto' +
+            ' obj= ' + QuoteArg(AccountPage.Values[0]) +
+            ' password= ' + QuoteArg(AccountPage.Values[1]);
+
+  if not Exec(ExpandConstant('{sys}\sc.exe'), Params, '', SW_HIDE,
+              ewWaitUntilTerminated, ExitCode) then
+  begin
+    MsgBox('Could not launch sc.exe to register the HirschNotify service.',
+           mbError, MB_OK);
+    Exit;
+  end;
+
+  if ExitCode <> 0 then
+  begin
+    MsgBox('Failed to register the HirschNotify Windows service.' + #13#10#13#10 +
+           FormatSvcError(ExitCode),
+           mbError, MB_OK);
+    Exit;
+  end;
+
+  { Description and failure actions are cosmetic — don't block the install
+    if they fail. }
+  Exec(ExpandConstant('{sys}\sc.exe'),
+       'description HirschNotify ' + QuoteArg('Monitors Velocity access control events and sends push notifications.'),
+       '', SW_HIDE, ewWaitUntilTerminated, ExitCode);
+
+  Exec(ExpandConstant('{sys}\sc.exe'),
+       'failure HirschNotify reset= 86400 actions= restart/60000/restart/60000/restart/60000',
+       '', SW_HIDE, ewWaitUntilTerminated, ExitCode);
+
+  Result := True;
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
@@ -254,6 +339,13 @@ var
 begin
   if (CurStep = ssPostInstall) and IsFreshInstall() then
   begin
+    { Register the service before [Run] fires (firewall rule, sc start,
+      browser launch). Aborts the install with a visible error if sc.exe
+      fails — the previous runhidden [Run] entries swallowed failures and
+      left the system half-installed. }
+    if not RegisterService() then
+      Abort;
+
     { Hand off the chosen Event Source mode to the service's first-boot
       handler in Program.cs:~195. Deleted by the app after consumption. }
     if EventSourcePage.SelectedValueIndex = 0 then
