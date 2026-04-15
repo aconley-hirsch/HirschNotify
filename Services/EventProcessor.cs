@@ -96,7 +96,8 @@ public class EventProcessor : IEventProcessor
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error processing event");
+            var preview = rawJson.Length > 200 ? rawJson[..200] + "..." : rawJson;
+            _logger.LogError(ex, "Error processing event: {Preview}", preview);
         }
     }
 
