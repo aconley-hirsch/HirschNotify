@@ -10,6 +10,7 @@ public class VelocityAdapterWorker : BackgroundService
     private readonly ConnectionState _connectionState;
     private readonly IEventProcessor _eventProcessor;
     private readonly IVelocityServerAccessor _serverAccessor;
+    private readonly EventSourceModeSignal _modeSignal;
     private readonly ILogger<VelocityAdapterWorker> _logger;
     private VelocityServer? _server;
 
@@ -18,12 +19,14 @@ public class VelocityAdapterWorker : BackgroundService
         ConnectionState connectionState,
         IEventProcessor eventProcessor,
         IVelocityServerAccessor serverAccessor,
+        EventSourceModeSignal modeSignal,
         ILogger<VelocityAdapterWorker> logger)
     {
         _scopeFactory = scopeFactory;
         _connectionState = connectionState;
         _eventProcessor = eventProcessor;
         _serverAccessor = serverAccessor;
+        _modeSignal = modeSignal;
         _logger = logger;
     }
 
@@ -33,27 +36,37 @@ public class VelocityAdapterWorker : BackgroundService
         {
             await Task.Delay(2000, stoppingToken);
 
-            // Check if VelocityAdapter mode is enabled
-            using (var scope = _scopeFactory.CreateScope())
-            {
-                var settings = scope.ServiceProvider.GetRequiredService<ISettingsService>();
-                var mode = await settings.GetAsync("EventSource:Mode") ?? "WebSocket";
-                if (mode == "WebSocket")
-                {
-                    _logger.LogInformation("Event source set to WebSocket — VelocityAdapter worker disabled");
-                    return;
-                }
-            }
-
             while (!stoppingToken.IsCancellationRequested)
             {
+                // Re-check mode on every pass so Settings can flip
+                // the active worker without a service restart.
+                string mode;
+                using (var scope = _scopeFactory.CreateScope())
+                {
+                    var settings = scope.ServiceProvider.GetRequiredService<ISettingsService>();
+                    mode = await settings.GetAsync("EventSource:Mode") ?? "WebSocket";
+                }
+
+                if (mode != "VelocityAdapter")
+                {
+                    await WaitForModeChangeOrStopAsync(stoppingToken);
+                    continue;
+                }
+
+                using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken, _modeSignal.Token);
                 try
                 {
-                    await ConnectAndListenAsync(stoppingToken);
+                    await ConnectAndListenAsync(linkedCts.Token);
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
                 {
                     break;
+                }
+                catch (OperationCanceledException)
+                {
+                    _logger.LogInformation("EventSource mode change — VelocityAdapter worker yielding");
+                    _connectionState.Status = "Disconnected";
+                    _connectionState.ConnectedSince = null;
                 }
                 catch (Exception ex)
                 {
@@ -70,7 +83,23 @@ public class VelocityAdapterWorker : BackgroundService
         }
     }
 
-    private async Task ConnectAndListenAsync(CancellationToken stoppingToken)
+    // Sleep until either the service shuts down or SettingsModel bumps
+    // the mode signal. Returning simply re-enters the outer loop, which
+    // re-reads EventSource:Mode and decides whether this worker is now
+    // the active one.
+    private async Task WaitForModeChangeOrStopAsync(CancellationToken stoppingToken)
+    {
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken, _modeSignal.Token);
+        try
+        {
+            await Task.Delay(Timeout.Infinite, linked.Token);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private async Task ConnectAndListenAsync(CancellationToken cancellationToken)
     {
         using var scope = _scopeFactory.CreateScope();
         var settings = scope.ServiceProvider.GetRequiredService<ISettingsService>();
@@ -81,7 +110,7 @@ public class VelocityAdapterWorker : BackgroundService
             _logger.LogWarning(
                 "Velocity connection settings not found. Configure Velocity:SqlServer + Velocity:Database " +
                 "in the settings page or install on a machine with the Velocity client registry. Waiting...");
-            await Task.Delay(30000, stoppingToken);
+            await Task.Delay(30000, cancellationToken);
             return;
         }
 
@@ -139,33 +168,39 @@ public class VelocityAdapterWorker : BackgroundService
         // (Windows / Windows + AppRole / SQL mixed-mode).
         VelocityConnectionResolver.ApplyConnect(_server, config);
 
-        // Wait for connection result with timeout
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
-        cts.CancelAfter(TimeSpan.FromSeconds(Math.Max(15, config.ConnectionTimeoutSec * 2)));
+        // Wait for connection result. Two cancellation sources merge into
+        // the waited token: the outer cancellationToken (service stop or
+        // mode change), and a local timeout for the connect handshake.
+        using var connectTimeoutCts = new CancellationTokenSource(
+            TimeSpan.FromSeconds(Math.Max(15, config.ConnectionTimeoutSec * 2)));
+        using var connectLinkedCts = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken, connectTimeoutCts.Token);
 
         try
         {
-            var success = await connected.Task.WaitAsync(cts.Token);
-            if (!success)
+            try
             {
+                var success = await connected.Task.WaitAsync(connectLinkedCts.Token);
+                if (!success)
+                {
+                    _connectionState.Status = "Disconnected";
+                    await Task.Delay(10000, cancellationToken);
+                    return;
+                }
+            }
+            catch (OperationCanceledException) when (connectTimeoutCts.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+            {
+                _logger.LogError("Velocity connection timed out");
                 _connectionState.Status = "Disconnected";
-                await Task.Delay(10000, stoppingToken);
                 return;
             }
-        }
-        catch (OperationCanceledException) when (!stoppingToken.IsCancellationRequested)
-        {
-            _logger.LogError("Velocity connection timed out");
-            _connectionState.Status = "Disconnected";
-            return;
-        }
 
-        // Stay alive until disconnected or cancelled
-        try
-        {
-            while (!stoppingToken.IsCancellationRequested && _server.IsConnected)
+            // Stay alive until disconnected or cancelled. Task.Delay will
+            // throw OperationCanceledException on service stop or mode change,
+            // which the outer ExecuteAsync catches and routes appropriately.
+            while (_server.IsConnected)
             {
-                await Task.Delay(1000, stoppingToken);
+                await Task.Delay(1000, cancellationToken);
             }
         }
         finally

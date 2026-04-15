@@ -111,6 +111,7 @@ try
         Directory.CreateDirectory(pluginsDir);
     }
     builder.Services.AddSingleton<ConnectionState>();
+    builder.Services.AddSingleton<EventSourceModeSignal>();
     builder.Services.AddScoped<IFilterEngine, FilterEngine>();
     builder.Services.AddScoped<IThrottleManager, ThrottleManager>();
     builder.Services.AddHttpClient<IWebSocketAuthService, WebSocketAuthService>();

@@ -19,6 +19,7 @@ public class SettingsModel : PageModel
     private readonly IServiceAccountManager _serviceAccountManager;
     private readonly UpdateState _updateState;
     private readonly IUpdateChecker _updateChecker;
+    private readonly EventSourceModeSignal _modeSignal;
     private readonly AppDbContext _db;
     private readonly ILogger<SettingsModel> _logger;
 
@@ -31,6 +32,7 @@ public class SettingsModel : PageModel
         IServiceAccountManager serviceAccountManager,
         UpdateState updateState,
         IUpdateChecker updateChecker,
+        EventSourceModeSignal modeSignal,
         AppDbContext db,
         ILogger<SettingsModel> logger)
     {
@@ -42,6 +44,7 @@ public class SettingsModel : PageModel
         _serviceAccountManager = serviceAccountManager;
         _updateState = updateState;
         _updateChecker = updateChecker;
+        _modeSignal = modeSignal;
         _db = db;
         _logger = logger;
     }
@@ -122,6 +125,8 @@ public class SettingsModel : PageModel
 
     public async Task<IActionResult> OnPostAsync(Dictionary<string, string> settings, Dictionary<string, string> encryptedSettings)
     {
+        var previousMode = await _settings.GetAsync("EventSource:Mode") ?? "WebSocket";
+
         foreach (var (key, value) in settings)
         {
             if (!string.IsNullOrEmpty(value))
@@ -132,6 +137,13 @@ public class SettingsModel : PageModel
         {
             if (!string.IsNullOrEmpty(value))
                 await _settings.SetEncryptedAsync(key, value);
+        }
+
+        var newMode = await _settings.GetAsync("EventSource:Mode") ?? "WebSocket";
+        if (newMode != previousMode)
+        {
+            _logger.LogInformation("EventSource:Mode changed {Old} -> {New}, signalling workers", previousMode, newMode);
+            _modeSignal.Trigger();
         }
 
         TempData["Success"] = "Settings saved.";

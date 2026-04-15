@@ -9,13 +9,20 @@ public class WebSocketWorker : BackgroundService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ConnectionState _connectionState;
     private readonly IEventProcessor _eventProcessor;
+    private readonly EventSourceModeSignal _modeSignal;
     private readonly ILogger<WebSocketWorker> _logger;
 
-    public WebSocketWorker(IServiceScopeFactory scopeFactory, ConnectionState connectionState, IEventProcessor eventProcessor, ILogger<WebSocketWorker> logger)
+    public WebSocketWorker(
+        IServiceScopeFactory scopeFactory,
+        ConnectionState connectionState,
+        IEventProcessor eventProcessor,
+        EventSourceModeSignal modeSignal,
+        ILogger<WebSocketWorker> logger)
     {
         _scopeFactory = scopeFactory;
         _connectionState = connectionState;
         _eventProcessor = eventProcessor;
+        _modeSignal = modeSignal;
         _logger = logger;
     }
 
@@ -25,27 +32,37 @@ public class WebSocketWorker : BackgroundService
         {
             await Task.Delay(2000, stoppingToken);
 
-            // Check if WebSocket mode is enabled
-            using (var scope = _scopeFactory.CreateScope())
-            {
-                var settings = scope.ServiceProvider.GetRequiredService<ISettingsService>();
-                var mode = await settings.GetAsync("EventSource:Mode") ?? "WebSocket";
-                if (mode == "VelocityAdapter")
-                {
-                    _logger.LogInformation("Event source set to VelocityAdapter — WebSocket worker disabled");
-                    return;
-                }
-            }
-
             while (!stoppingToken.IsCancellationRequested)
             {
+                // Re-check mode on every pass so Settings can flip
+                // the active worker without a service restart.
+                string mode;
+                using (var scope = _scopeFactory.CreateScope())
+                {
+                    var settings = scope.ServiceProvider.GetRequiredService<ISettingsService>();
+                    mode = await settings.GetAsync("EventSource:Mode") ?? "WebSocket";
+                }
+
+                if (mode != "WebSocket")
+                {
+                    await WaitForModeChangeOrStopAsync(stoppingToken);
+                    continue;
+                }
+
+                using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken, _modeSignal.Token);
                 try
                 {
-                    await ConnectAndListenAsync(stoppingToken);
+                    await ConnectAndListenAsync(linkedCts.Token);
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
                 {
                     break;
+                }
+                catch (OperationCanceledException)
+                {
+                    _logger.LogInformation("EventSource mode change — WebSocket worker yielding");
+                    _connectionState.Status = "Disconnected";
+                    _connectionState.ConnectedSince = null;
                 }
                 catch (Exception ex)
                 {
@@ -62,7 +79,23 @@ public class WebSocketWorker : BackgroundService
         }
     }
 
-    private async Task ConnectAndListenAsync(CancellationToken stoppingToken)
+    // Sleep until either the service shuts down or SettingsModel bumps
+    // the mode signal. Returning simply re-enters the outer loop, which
+    // re-reads EventSource:Mode and decides whether this worker is now
+    // the active one.
+    private async Task WaitForModeChangeOrStopAsync(CancellationToken stoppingToken)
+    {
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken, _modeSignal.Token);
+        try
+        {
+            await Task.Delay(Timeout.Infinite, linked.Token);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private async Task ConnectAndListenAsync(CancellationToken cancellationToken)
     {
         using var scope = _scopeFactory.CreateScope();
         var settings = scope.ServiceProvider.GetRequiredService<ISettingsService>();
@@ -80,7 +113,7 @@ public class WebSocketWorker : BackgroundService
             string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
         {
             _logger.LogWarning("WebSocket settings not configured. Waiting...");
-            await Task.Delay(30000, stoppingToken);
+            await Task.Delay(30000, cancellationToken);
             return;
         }
 
@@ -97,7 +130,7 @@ public class WebSocketWorker : BackgroundService
         {
             _logger.LogError("Failed to get authentication token");
             _connectionState.Status = "Auth Failed";
-            await Task.Delay(30000, stoppingToken);
+            await Task.Delay(30000, cancellationToken);
             return;
         }
 
@@ -106,7 +139,7 @@ public class WebSocketWorker : BackgroundService
         ws.Options.SetRequestHeader("Authorization", $"Bearer {token}");
 
         _connectionState.Status = "Connecting";
-        await ws.ConnectAsync(new Uri(wsUrl), stoppingToken);
+        await ws.ConnectAsync(new Uri(wsUrl), cancellationToken);
 
         _connectionState.Status = "Connected";
         _connectionState.ConnectedSince = DateTime.UtcNow;
@@ -116,9 +149,9 @@ public class WebSocketWorker : BackgroundService
         var buffer = new byte[4096];
         var messageBuffer = new StringBuilder();
 
-        while (ws.State == WebSocketState.Open && !stoppingToken.IsCancellationRequested)
+        while (ws.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested)
         {
-            var result = await ws.ReceiveAsync(new ArraySegment<byte>(buffer), stoppingToken);
+            var result = await ws.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken);
 
             if (result.MessageType == WebSocketMessageType.Close)
             {
@@ -137,7 +170,7 @@ public class WebSocketWorker : BackgroundService
                     _connectionState.IncrementEvents();
 
                     _logger.LogInformation("WebSocket message received: {Message}", message.Length > 500 ? message[..500] + "..." : message);
-                    await _eventProcessor.ProcessEventAsync(message, stoppingToken);
+                    await _eventProcessor.ProcessEventAsync(message, cancellationToken);
                 }
             }
         }
