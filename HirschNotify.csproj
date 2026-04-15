@@ -13,6 +13,13 @@
          zh-Hans/, zh-Hant/) that ASP.NET Core would otherwise emit into
          the publish output for framework localized error messages. -->
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <!-- Keep the Static Web Assets SDK from sweeping these into Content.
+         agents/ holds local counselors-skill artifacts. VelocityAdapter/
+         holds the net48 SDK drop whose .dll comes in via <Reference> —
+         the per-assembly .config files are net48 binding redirects that
+         .NET 10 ignores, and regasm.exe.config belongs to a COM tool
+         we never run. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);agents/**;VelocityAdapter/**</DefaultItemExcludes>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
