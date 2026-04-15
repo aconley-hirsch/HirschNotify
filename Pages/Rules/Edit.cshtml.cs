@@ -14,11 +14,13 @@ public class EditModel : PageModel
 {
     private readonly AppDbContext _db;
     private readonly ConnectionState _connectionState;
+    private readonly ILogger<EditModel> _logger;
 
-    public EditModel(AppDbContext db, ConnectionState connectionState)
+    public EditModel(AppDbContext db, ConnectionState connectionState, ILogger<EditModel> logger)
     {
         _db = db;
         _connectionState = connectionState;
+        _logger = logger;
     }
 
     public List<FieldInfo> CommonFields => EventSchema.CommonFields;
@@ -240,7 +242,10 @@ public class EditModel : PageModel
                     if (!string.IsNullOrEmpty(str)) values.Add(str);
                 }
             }
-            catch (JsonException) { }
+            catch (JsonException ex)
+            {
+                _logger.LogDebug(ex, "Skipping malformed recent event while enumerating field values for {Field}", field);
+            }
         }
 
         var type = EventSchema.GetFieldType(field);
@@ -314,7 +319,11 @@ public class EditModel : PageModel
                         ? row.ConditionResults.All(r => r.Passed)
                         : row.ConditionResults.Any(r => r.Passed);
                 }
-                catch (JsonException) { row.Matched = false; }
+                catch (JsonException ex)
+                {
+                    _logger.LogDebug(ex, "Test-match: skipping malformed event at {Timestamp}", evt.Timestamp);
+                    row.Matched = false;
+                }
             }
 
             if (firstMatch == null && row.Matched) firstMatch = row;
@@ -342,7 +351,10 @@ public class EditModel : PageModel
                     ? $"Using matched event at {basisEvent.Timestamp.ToLocalTime():HH:mm:ss}"
                     : $"Using most recent event at {basisEvent.Timestamp.ToLocalTime():HH:mm:ss} (not matched by current rule)";
             }
-            catch (JsonException) { }
+            catch (JsonException ex)
+            {
+                _logger.LogDebug(ex, "Test-match: unable to render preview from basis event at {Timestamp}", basisEvent.Timestamp);
+            }
         }
 
         return Partial("_MatchPreview", result);
@@ -375,7 +387,12 @@ public class EditModel : PageModel
             if (doc.RootElement.TryGetProperty("source", out var s)) return s.GetString() ?? "";
             if (doc.RootElement.TryGetProperty("velocityEventType", out var v)) return v.GetString() ?? "";
         }
-        catch { }
+        catch (JsonException)
+        {
+            // Static helper with no logger — caller's loop already logs
+            // parse failures via the OnPostTestMatch handler. Silent
+            // fallback to the "Event" label is intentional.
+        }
         return "Event";
     }
 

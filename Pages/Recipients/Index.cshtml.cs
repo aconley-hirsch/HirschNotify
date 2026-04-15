@@ -14,12 +14,14 @@ public class IndexModel : PageModel
     private readonly AppDbContext _db;
     private readonly INotificationSender _notificationSender;
     private readonly IRelayClient _relayClient;
+    private readonly ILogger<IndexModel> _logger;
 
-    public IndexModel(AppDbContext db, INotificationSender notificationSender, IRelayClient relayClient)
+    public IndexModel(AppDbContext db, INotificationSender notificationSender, IRelayClient relayClient, ILogger<IndexModel> logger)
     {
         _db = db;
         _notificationSender = notificationSender;
         _relayClient = relayClient;
+        _logger = logger;
     }
 
     public List<Recipient> Recipients { get; set; } = new();
@@ -41,8 +43,17 @@ public class IndexModel : PageModel
     {
         Recipients = await _db.Recipients.OrderBy(r => r.Name).ToListAsync();
 
-        try { PairedDevices = await _relayClient.GetDevicesAsync(); }
-        catch { PairedDevices = new(); }
+        try
+        {
+            PairedDevices = await _relayClient.GetDevicesAsync();
+        }
+        catch (Exception ex)
+        {
+            // Relay may be unregistered or unreachable — the list renders
+            // with no paired-device badges in that case.
+            _logger.LogDebug(ex, "Could not fetch paired devices list from relay");
+            PairedDevices = new();
+        }
 
         ContactMethodsByRecipient = (await _db.ContactMethods.ToListAsync())
             .GroupBy(cm => cm.RecipientId)

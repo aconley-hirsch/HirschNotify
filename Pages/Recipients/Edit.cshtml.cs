@@ -15,13 +15,15 @@ public class EditModel : PageModel
     private readonly IRelayClient _relayClient;
     private readonly INotificationSender _notificationSender;
     private readonly IEnumerable<IContactMethodSender> _contactMethodSenders;
+    private readonly ILogger<EditModel> _logger;
 
-    public EditModel(AppDbContext db, IRelayClient relayClient, INotificationSender notificationSender, IEnumerable<IContactMethodSender> contactMethodSenders)
+    public EditModel(AppDbContext db, IRelayClient relayClient, INotificationSender notificationSender, IEnumerable<IContactMethodSender> contactMethodSenders, ILogger<EditModel> logger)
     {
         _db = db;
         _relayClient = relayClient;
         _notificationSender = notificationSender;
         _contactMethodSenders = contactMethodSenders;
+        _logger = logger;
     }
 
     public Recipient Recipient { get; set; } = new();
@@ -64,7 +66,13 @@ public class EditModel : PageModel
             var devices = await _relayClient.GetDevicesAsync();
             PairedDevice = devices.FirstOrDefault(d => d.RecipientId == Recipient.Id);
         }
-        catch { }
+        catch (Exception ex)
+        {
+            // Relay may be unregistered, unreachable, or returning auth
+            // errors — any of which are valid "no paired device to show"
+            // states. Log for diagnostics but don't surface to the user.
+            _logger.LogDebug(ex, "Could not fetch paired device for recipient {RecipientId} from relay", Recipient.Id);
+        }
     }
 
     public async Task<IActionResult> OnPostAsync(int id, string name, bool isActive = false)

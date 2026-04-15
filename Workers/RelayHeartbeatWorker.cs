@@ -56,7 +56,10 @@ public class RelayHeartbeatWorker : BackgroundService
                 var settings = scope.ServiceProvider.GetRequiredService<ISettingsService>();
                 intervalStr = await settings.GetAsync("Relay:HeartbeatIntervalSec") ?? "60";
             }
-            catch { /* use default */ }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Failed to read Relay:HeartbeatIntervalSec, falling back to 60s");
+            }
 
             var interval = int.TryParse(intervalStr, out var sec) ? sec : 60;
             await Task.Delay(TimeSpan.FromSeconds(interval), stoppingToken);

@@ -103,7 +103,7 @@ public class SettingsModel : PageModel
         EffectiveRelayUrl = await _relayUrlResolver.GetAsync();
     }
 
-    private static string ResolveCurrentServiceAccount()
+    private string ResolveCurrentServiceAccount()
     {
         if (OperatingSystem.IsWindows())
         {
@@ -113,9 +113,9 @@ public class SettingsModel : PageModel
                 if (!string.IsNullOrEmpty(identity.Name))
                     return identity.Name;
             }
-            catch
+            catch (Exception ex)
             {
-                // Fall through to Environment.UserName.
+                _logger.LogDebug(ex, "WindowsIdentity.GetCurrent() failed, falling back to Environment.UserName");
             }
         }
         var domain = Environment.UserDomainName;
