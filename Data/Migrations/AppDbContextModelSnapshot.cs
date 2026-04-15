@@ -33,6 +33,46 @@ namespace HirschNotify.Data.Migrations
                     b.ToTable("AppSettings");
                 });
 
+            modelBuilder.Entity("HirschNotify.Models.ContactMethod", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Configuration")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("RecipientId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RecipientId");
+
+                    b.ToTable("ContactMethods");
+                });
+
             modelBuilder.Entity("HirschNotify.Models.FilterCondition", b =>
                 {
                     b.Property<int>("Id")
@@ -126,44 +166,19 @@ namespace HirschNotify.Data.Migrations
                     b.ToTable("FilterRuleRecipients");
                 });
 
-            modelBuilder.Entity("HirschNotify.Models.ContactMethod", b =>
+            modelBuilder.Entity("HirschNotify.Models.FilterRuleRecipientGroup", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
+                    b.Property<int>("FilterRuleId")
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("Configuration")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("IsActive")
+                    b.Property<int>("RecipientGroupId")
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("Label")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("TEXT");
+                    b.HasKey("FilterRuleId", "RecipientGroupId");
 
-                    b.Property<int>("RecipientId")
-                        .HasColumnType("INTEGER");
+                    b.HasIndex("RecipientGroupId");
 
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("RecipientId");
-
-                    b.ToTable("ContactMethods");
+                    b.ToTable("FilterRuleRecipientGroups");
                 });
 
             modelBuilder.Entity("HirschNotify.Models.Recipient", b =>
@@ -189,6 +204,47 @@ namespace HirschNotify.Data.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Recipients");
+                });
+
+            modelBuilder.Entity("HirschNotify.Models.RecipientGroup", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("RecipientGroups");
+                });
+
+            modelBuilder.Entity("HirschNotify.Models.RecipientGroupMember", b =>
+                {
+                    b.Property<int>("RecipientGroupId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("RecipientId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("RecipientGroupId", "RecipientId");
+
+                    b.HasIndex("RecipientId");
+
+                    b.ToTable("RecipientGroupMembers");
                 });
 
             modelBuilder.Entity("HirschNotify.Models.ThrottleState", b =>
@@ -451,6 +507,44 @@ namespace HirschNotify.Data.Migrations
                     b.Navigation("Recipient");
                 });
 
+            modelBuilder.Entity("HirschNotify.Models.FilterRuleRecipientGroup", b =>
+                {
+                    b.HasOne("HirschNotify.Models.FilterRule", "FilterRule")
+                        .WithMany("FilterRuleRecipientGroups")
+                        .HasForeignKey("FilterRuleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("HirschNotify.Models.RecipientGroup", "RecipientGroup")
+                        .WithMany("FilterRuleRecipientGroups")
+                        .HasForeignKey("RecipientGroupId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("FilterRule");
+
+                    b.Navigation("RecipientGroup");
+                });
+
+            modelBuilder.Entity("HirschNotify.Models.RecipientGroupMember", b =>
+                {
+                    b.HasOne("HirschNotify.Models.RecipientGroup", "RecipientGroup")
+                        .WithMany("Members")
+                        .HasForeignKey("RecipientGroupId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("HirschNotify.Models.Recipient", "Recipient")
+                        .WithMany()
+                        .HasForeignKey("RecipientId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Recipient");
+
+                    b.Navigation("RecipientGroup");
+                });
+
             modelBuilder.Entity("HirschNotify.Models.ThrottleState", b =>
                 {
                     b.HasOne("HirschNotify.Models.FilterRule", "FilterRule")
@@ -525,6 +619,8 @@ namespace HirschNotify.Data.Migrations
                 {
                     b.Navigation("Conditions");
 
+                    b.Navigation("FilterRuleRecipientGroups");
+
                     b.Navigation("FilterRuleRecipients");
                 });
 
@@ -533,6 +629,13 @@ namespace HirschNotify.Data.Migrations
                     b.Navigation("ContactMethods");
 
                     b.Navigation("FilterRuleRecipients");
+                });
+
+            modelBuilder.Entity("HirschNotify.Models.RecipientGroup", b =>
+                {
+                    b.Navigation("FilterRuleRecipientGroups");
+
+                    b.Navigation("Members");
                 });
 #pragma warning restore 612, 618
         }

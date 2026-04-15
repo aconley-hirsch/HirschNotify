@@ -84,6 +84,22 @@ namespace HirschNotify.Data.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "RecipientGroups",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    Name = table.Column<string>(type: "TEXT", maxLength: 100, nullable: false),
+                    Description = table.Column<string>(type: "TEXT", maxLength: 200, nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_RecipientGroups", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Recipients",
                 columns: table => new
                 {
@@ -229,6 +245,55 @@ namespace HirschNotify.Data.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "FilterRuleRecipientGroups",
+                columns: table => new
+                {
+                    FilterRuleId = table.Column<int>(type: "INTEGER", nullable: false),
+                    RecipientGroupId = table.Column<int>(type: "INTEGER", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_FilterRuleRecipientGroups", x => new { x.FilterRuleId, x.RecipientGroupId });
+                    table.ForeignKey(
+                        name: "FK_FilterRuleRecipientGroups_FilterRules_FilterRuleId",
+                        column: x => x.FilterRuleId,
+                        principalTable: "FilterRules",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_FilterRuleRecipientGroups_RecipientGroups_RecipientGroupId",
+                        column: x => x.RecipientGroupId,
+                        principalTable: "RecipientGroups",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ContactMethods",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    RecipientId = table.Column<int>(type: "INTEGER", nullable: false),
+                    Type = table.Column<string>(type: "TEXT", maxLength: 20, nullable: false),
+                    Label = table.Column<string>(type: "TEXT", maxLength: 100, nullable: false),
+                    Configuration = table.Column<string>(type: "TEXT", maxLength: 2000, nullable: false),
+                    IsActive = table.Column<bool>(type: "INTEGER", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ContactMethods", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_ContactMethods_Recipients_RecipientId",
+                        column: x => x.RecipientId,
+                        principalTable: "Recipients",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "FilterRuleRecipients",
                 columns: table => new
                 {
@@ -246,6 +311,30 @@ namespace HirschNotify.Data.Migrations
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
                         name: "FK_FilterRuleRecipients_Recipients_RecipientId",
+                        column: x => x.RecipientId,
+                        principalTable: "Recipients",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "RecipientGroupMembers",
+                columns: table => new
+                {
+                    RecipientGroupId = table.Column<int>(type: "INTEGER", nullable: false),
+                    RecipientId = table.Column<int>(type: "INTEGER", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_RecipientGroupMembers", x => new { x.RecipientGroupId, x.RecipientId });
+                    table.ForeignKey(
+                        name: "FK_RecipientGroupMembers_RecipientGroups_RecipientGroupId",
+                        column: x => x.RecipientGroupId,
+                        principalTable: "RecipientGroups",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_RecipientGroupMembers_Recipients_RecipientId",
                         column: x => x.RecipientId,
                         principalTable: "Recipients",
                         principalColumn: "Id",
@@ -318,13 +407,28 @@ namespace HirschNotify.Data.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_ContactMethods_RecipientId",
+                table: "ContactMethods",
+                column: "RecipientId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_FilterConditions_FilterRuleId",
                 table: "FilterConditions",
                 column: "FilterRuleId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_FilterRuleRecipientGroups_RecipientGroupId",
+                table: "FilterRuleRecipientGroups",
+                column: "RecipientGroupId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_FilterRuleRecipients_RecipientId",
                 table: "FilterRuleRecipients",
+                column: "RecipientId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_RecipientGroupMembers_RecipientId",
+                table: "RecipientGroupMembers",
                 column: "RecipientId");
 
             migrationBuilder.CreateIndex(
@@ -360,10 +464,19 @@ namespace HirschNotify.Data.Migrations
                 name: "AspNetUserTokens");
 
             migrationBuilder.DropTable(
+                name: "ContactMethods");
+
+            migrationBuilder.DropTable(
                 name: "FilterConditions");
 
             migrationBuilder.DropTable(
+                name: "FilterRuleRecipientGroups");
+
+            migrationBuilder.DropTable(
                 name: "FilterRuleRecipients");
+
+            migrationBuilder.DropTable(
+                name: "RecipientGroupMembers");
 
             migrationBuilder.DropTable(
                 name: "ThrottleStates");
@@ -373,6 +486,9 @@ namespace HirschNotify.Data.Migrations
 
             migrationBuilder.DropTable(
                 name: "AspNetUsers");
+
+            migrationBuilder.DropTable(
+                name: "RecipientGroups");
 
             migrationBuilder.DropTable(
                 name: "FilterRules");

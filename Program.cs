@@ -35,7 +35,6 @@ try
             options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection"));
         else
             options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"));
-        options.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
     });
 
     // Identity
@@ -162,42 +161,6 @@ try
     {
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         db.Database.Migrate();
-
-        // Create new tables if they don't exist (for models added after last migration)
-        db.Database.ExecuteSqlRaw(@"
-            CREATE TABLE IF NOT EXISTS RecipientGroups (
-                Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                Name TEXT NOT NULL,
-                Description TEXT,
-                CreatedAt TEXT NOT NULL DEFAULT (datetime('now')),
-                UpdatedAt TEXT NOT NULL DEFAULT (datetime('now'))
-            );
-            CREATE TABLE IF NOT EXISTS RecipientGroupMembers (
-                RecipientGroupId INTEGER NOT NULL,
-                RecipientId INTEGER NOT NULL,
-                PRIMARY KEY (RecipientGroupId, RecipientId),
-                FOREIGN KEY (RecipientGroupId) REFERENCES RecipientGroups(Id) ON DELETE CASCADE,
-                FOREIGN KEY (RecipientId) REFERENCES Recipients(Id) ON DELETE CASCADE
-            );
-            CREATE TABLE IF NOT EXISTS FilterRuleRecipientGroups (
-                FilterRuleId INTEGER NOT NULL,
-                RecipientGroupId INTEGER NOT NULL,
-                PRIMARY KEY (FilterRuleId, RecipientGroupId),
-                FOREIGN KEY (FilterRuleId) REFERENCES FilterRules(Id) ON DELETE CASCADE,
-                FOREIGN KEY (RecipientGroupId) REFERENCES RecipientGroups(Id) ON DELETE CASCADE
-            );
-            CREATE TABLE IF NOT EXISTS ContactMethods (
-                Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                RecipientId INTEGER NOT NULL,
-                Type TEXT NOT NULL,
-                Label TEXT NOT NULL,
-                Configuration TEXT NOT NULL DEFAULT '{{}}',
-                IsActive INTEGER NOT NULL DEFAULT 1,
-                CreatedAt TEXT NOT NULL DEFAULT (datetime('now')),
-                UpdatedAt TEXT NOT NULL DEFAULT (datetime('now')),
-                FOREIGN KEY (RecipientId) REFERENCES Recipients(Id) ON DELETE CASCADE
-            );
-        ");
 
         // Apply installer settings if install-config.json exists
         var installConfigPath = Path.Combine(AppContext.BaseDirectory, "install-config.json");
