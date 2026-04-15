@@ -126,18 +126,30 @@ function Win32GetLastError(): Cardinal;
 
 function ServiceExists(): Boolean;
 var
-  ResultCode: Integer;
-  Launched: Boolean;
+  hSCM, hSvc, LastErr: Cardinal;
 begin
-  Launched := Exec(ExpandConstant('{sys}\sc.exe'),
-                   'query HirschNotify',
-                   '',
-                   SW_HIDE,
-                   ewWaitUntilTerminated,
-                   ResultCode);
-  Log('ServiceExists: sc query launched=' + IntToStr(Ord(Launched)) +
-      ' exit=' + IntToStr(ResultCode));
-  Result := Launched and (ResultCode = 0);
+  Result := False;
+  hSCM := OpenSCManagerW(0, 0, SC_MANAGER_CONNECT);
+  if hSCM = 0 then
+  begin
+    Log('ServiceExists: OpenSCManagerW failed, GetLastError=' + IntToStr(Win32GetLastError()));
+    Exit;
+  end;
+  try
+    hSvc := OpenServiceW(hSCM, 'HirschNotify', SERVICE_QUERY_STATUS);
+    if hSvc = 0 then
+    begin
+      LastErr := Win32GetLastError();
+      Log('ServiceExists: OpenServiceW returned 0, GetLastError=' + IntToStr(LastErr) +
+          ' (1060 = service not installed, anything else is a real error)');
+      Exit;
+    end;
+    Log('ServiceExists: OpenServiceW succeeded — HirschNotify is registered.');
+    CloseServiceHandle(hSvc);
+    Result := True;
+  finally
+    CloseServiceHandle(hSCM);
+  end;
 end;
 
 function IsFreshInstall(): Boolean;

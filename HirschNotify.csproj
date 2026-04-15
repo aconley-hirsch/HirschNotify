@@ -8,7 +8,23 @@
     <!-- Required by the LibraryImport source generator used for Win32
          P/Invokes in Services/Windows/ServiceAccountPInvoke.cs. -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Only ship English satellite assemblies. Drops 13 per-culture
+         folders (cs/, de/, es/, fr/, it/, ja/, ko/, pl/, pt-BR/, ru/, tr/,
+         zh-Hans/, zh-Hant/) that ASP.NET Core would otherwise emit into
+         the publish output for framework localized error messages. -->
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
   </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <!-- Keep PDBs in bin/ for local crash-dump analysis, but don't copy
+         them into the publish output that ships to customers. -->
+    <CopyOutputSymbolsToPublishDirectory>false</CopyOutputSymbolsToPublishDirectory>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Dev-only overlay. Not for production installs. -->
+    <Content Update="appsettings.Development.json" CopyToPublishDirectory="Never" />
+  </ItemGroup>
 
   <ItemGroup>
     <Reference Include="VelocityAdapter">
