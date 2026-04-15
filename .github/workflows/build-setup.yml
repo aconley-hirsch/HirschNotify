@@ -81,11 +81,79 @@ jobs:
           path: ${{ steps.find_exe.outputs.exe_path }}
           retention-days: 90
 
+      # ── Derive release notes from the annotated tag ───
+      # The HirschRelay update proxy exposes the release body to
+      # installed instances, which show it in Settings → About.
+      # Use the annotated tag's message as the source of truth:
+      #
+      #     git tag -a v1.0.11 -m "Release 1.0.11
+      #
+      #     - **Added:** Recipient contact method preview on the edit page.
+      #     - **Fixed:** Velocity Adapter mode no longer drops the first event after reconnect."
+      #
+      # ─── Style guide for the tag annotation body ───
+      # This text is read by CUSTOMERS in their Settings → About
+      # accordion when they have an update available. Write it as
+      # release notes, not a commit log:
+      #
+      #   - Describe user-visible behavior, not internal plumbing.
+      #     "Fixed: version number in Settings → About" ✓
+      #     "Refactored UpdateState.CurrentVersion to read InformationalVersion" ✗
+      #   - Lead each bullet with a category in bold: **Added**,
+      #     **Fixed**, **Changed**, **Removed**, **Security**.
+      #   - Skip releases that are pure dev-internal plumbing with no
+      #     user-visible change. If you can't describe it without
+      #     using the word "refactor", it probably doesn't belong.
+      #   - Short over long. One sentence per bullet. Markdown is
+      #     rendered in both the GitHub UI and Settings → About.
+      #
+      # Priority:
+      #   1. Tag annotation body (git `%(contents:body)` — everything
+      #      after the first blank line in `git tag -a -m '...'`)
+      #   2. Tag annotation subject (first line) if no body
+      #   3. Commit messages since the previous tag, as a fallback
+      #      for lightweight tags
+      - name: Derive release notes from tag annotation
+        id: notes
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          BODY=$(git tag -l --format='%(contents:body)' "$TAG")
+          SUBJECT=$(git tag -l --format='%(contents:subject)' "$TAG")
+
+          if [ -n "$BODY" ]; then
+            NOTES="$BODY"
+          elif [ -n "$SUBJECT" ]; then
+            NOTES="$SUBJECT"
+          else
+            PREV=$(git describe --tags --abbrev=0 "$TAG^" 2>/dev/null || echo '')
+            if [ -n "$PREV" ]; then
+              NOTES=$(git log "$PREV..$TAG" --format='- %s' --no-merges)
+            else
+              NOTES="Initial release"
+            fi
+          fi
+
+          echo "─── release notes for $TAG ───"
+          echo "$NOTES"
+          echo "──────────────────────────────"
+
+          {
+            echo 'notes<<ENDOFNOTES'
+            echo "$NOTES"
+            echo 'ENDOFNOTES'
+          } >> "$GITHUB_OUTPUT"
+
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ steps.find_exe.outputs.exe_path }}
+          body: ${{ steps.notes.outputs.notes }}
+          # generate_release_notes still appends GitHub's auto-generated
+          # "Full Changelog: v1.0.10...v1.0.11" compare link at the
+          # bottom, underneath the body we provide.
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
