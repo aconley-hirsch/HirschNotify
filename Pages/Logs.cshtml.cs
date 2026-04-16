@@ -1,3 +1,4 @@
+using HirschNotify.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -11,16 +12,10 @@ public class LogsModel : PageModel
 
     public IActionResult OnGetTail(int lines = 200, string? level = null)
     {
-        // Serilog writes to "Logs/" relative to current working directory
-        var candidates = new[]
+        var logDir = AppPaths.LogsDir;
+        if (!Directory.Exists(logDir))
         {
-            Path.Combine(Directory.GetCurrentDirectory(), "Logs"),
-            Path.Combine(AppContext.BaseDirectory, "Logs"),
-        };
-        var logDir = candidates.FirstOrDefault(Directory.Exists);
-        if (logDir == null)
-        {
-            return Content($"<p class='text-muted-msg'>No log directory found. Searched: {string.Join(", ", candidates)}</p>", "text/html");
+            return Content($"<p class='text-muted-msg'>No log directory found at {logDir}</p>", "text/html");
         }
 
         var latest = Directory.GetFiles(logDir, "HirschNotify-*.log")
