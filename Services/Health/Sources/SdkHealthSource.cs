@@ -5,7 +5,7 @@ using VelocityAdapter;
 namespace HirschNotify.Services.Health.Sources;
 
 /// <summary>
-/// Polls the Velocity SDK for backlog, failed-login, and latency signals. Reads
+/// Polls the Velocity SDK for credential-backlog and SQL-latency signals. Reads
 /// the currently-connected <see cref="VelocityServer"/> via
 /// <see cref="IVelocityServerAccessor"/> — if no connection is live, the source
 /// sleeps until one is established rather than erroring out.
@@ -14,7 +14,6 @@ namespace HirschNotify.Services.Health.Sources;
 /// Signals emitted:
 /// <list type="bullet">
 /// <item><description><c>queue_threshold</c> — credential download queue crossed a warn/critical threshold</description></item>
-/// <item><description><c>failed_logins</c> — SQL failed-login rate crossed a warn/critical threshold (per-minute)</description></item>
 /// <item><description><c>sql_latency</c> — SQL round-trip exceeded a threshold (measured by timing the backlog query)</description></item>
 /// <item><description><c>snapshot</c> — optional periodic gauge dump when <see cref="SdkHealthSettings.EmitSnapshots"/> is on</description></item>
 /// </list>
@@ -32,15 +31,8 @@ public sealed class SdkHealthSource : IHealthSource
     private readonly IOptionsMonitor<HealthSettings> _options;
     private readonly ILogger<SdkHealthSource> _logger;
 
-    // Edge-trigger state for threshold crossings.
     private Band _queueBand = Band.Ok;
-    private Band _failedLoginBand = Band.Ok;
     private Band _latencyBand = Band.Ok;
-
-    // Rolling "since" time for HowManySQLFailedLoginsSince. Start at source-start
-    // so the first poll gives a bounded count rather than counting every failure
-    // ever recorded in the Velocity DB.
-    private DateTime _lastFailedLoginSince = DateTime.UtcNow;
 
     public SdkHealthSource(
         IVelocityServerAccessor serverAccessor,
@@ -55,7 +47,6 @@ public sealed class SdkHealthSource : IHealthSource
     public async Task RunAsync(IHealthEventEmitter emitter, CancellationToken cancellationToken)
     {
         _logger.LogInformation("SdkHealthSource starting");
-        _lastFailedLoginSince = DateTime.UtcNow;
 
         while (!cancellationToken.IsCancellationRequested)
         {
@@ -108,7 +99,6 @@ public sealed class SdkHealthSource : IHealthSource
         SdkHealthSettings settings,
         CancellationToken cancellationToken)
     {
-        // 1. Credential download backlog — also doubles as a SQL latency probe.
         var stopwatch = Stopwatch.StartNew();
         int queueCount;
         try
@@ -123,28 +113,9 @@ public sealed class SdkHealthSource : IHealthSource
         stopwatch.Stop();
         var latencyMs = (int)stopwatch.ElapsedMilliseconds;
 
-        // 2. Failed SQL logins since last poll → rate per minute.
-        var now = DateTime.UtcNow;
-        var windowSeconds = Math.Max(1, (now - _lastFailedLoginSince).TotalSeconds);
-        int failedLoginCount;
-        try
-        {
-            failedLoginCount = server.HowManySQLFailedLoginsSince(_lastFailedLoginSince);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "HowManySQLFailedLoginsSince failed");
-            failedLoginCount = 0;
-        }
-        _lastFailedLoginSince = now;
-        var failedLoginRatePerMinute = failedLoginCount / (windowSeconds / 60.0);
-
-        // 3. Edge-triggered threshold checks.
         await CheckQueueThresholdAsync(emitter, settings, queueCount, cancellationToken);
-        await CheckFailedLoginThresholdAsync(emitter, settings, failedLoginCount, failedLoginRatePerMinute, cancellationToken);
         await CheckLatencyThresholdAsync(emitter, settings, latencyMs, cancellationToken);
 
-        // 4. Optional snapshot (disabled by default).
         if (settings.EmitSnapshots)
         {
             await emitter.EmitAsync(new HealthEvent
@@ -152,14 +123,10 @@ public sealed class SdkHealthSource : IHealthSource
                 Source = Name,
                 Category = "snapshot",
                 Severity = HealthSeverity.Info,
-                Description =
-                    $"SDK snapshot: queue={queueCount}, failedLogins={failedLoginCount} " +
-                    $"({failedLoginRatePerMinute:F1}/min), sqlLatencyMs={latencyMs}",
+                Description = $"SDK snapshot: queue={queueCount}, sqlLatencyMs={latencyMs}",
                 Fields =
                 {
                     ["queueCount"] = queueCount,
-                    ["failedLoginCount"] = failedLoginCount,
-                    ["failedLoginRatePerMinute"] = Math.Round(failedLoginRatePerMinute, 2),
                     ["sqlLatencyMs"] = latencyMs,
                     ["velocityRelease"] = SafeGet(() => server.VelocityRelease),
                     ["serverName"] = SafeGet(() => server.ServerName),
@@ -204,49 +171,6 @@ public sealed class SdkHealthSource : IHealthSource
         }, cancellationToken);
 
         _queueBand = band;
-    }
-
-    private async Task CheckFailedLoginThresholdAsync(
-        IHealthEventEmitter emitter,
-        SdkHealthSettings settings,
-        int failedLoginCount,
-        double ratePerMinute,
-        CancellationToken cancellationToken)
-    {
-        var band = ClassifyBand(
-            ratePerMinute,
-            settings.FailedLoginWarnRatePerMinute,
-            settings.FailedLoginCriticalRatePerMinute);
-
-        if (band == _failedLoginBand) return;
-
-        var severity = band switch
-        {
-            Band.Critical => HealthSeverity.Critical,
-            Band.Warning => HealthSeverity.Warning,
-            _ => HealthSeverity.Info,
-        };
-
-        await emitter.EmitAsync(new HealthEvent
-        {
-            Source = Name,
-            Category = "failed_logins",
-            Severity = severity,
-            Description = band == Band.Ok
-                ? $"SQL failed-login rate recovered ({ratePerMinute:F1}/min)"
-                : $"SQL failed-login rate crossed {band} threshold ({ratePerMinute:F1}/min)",
-            Fields =
-            {
-                ["failedLoginCount"] = failedLoginCount,
-                ["failedLoginRatePerMinute"] = Math.Round(ratePerMinute, 2),
-                ["previousBand"] = _failedLoginBand.ToString(),
-                ["currentBand"] = band.ToString(),
-                ["warnRatePerMinute"] = settings.FailedLoginWarnRatePerMinute,
-                ["criticalRatePerMinute"] = settings.FailedLoginCriticalRatePerMinute,
-            },
-        }, cancellationToken);
-
-        _failedLoginBand = band;
     }
 
     private async Task CheckLatencyThresholdAsync(

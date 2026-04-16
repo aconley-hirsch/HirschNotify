@@ -104,13 +104,6 @@ public sealed class SdkHealthSettings
     public int QueueCriticalThreshold { get; set; } = 500;
 
     /// <summary>
-    /// Failed SQL login rate thresholds (events per minute). Rising rate points
-    /// at auth misconfiguration or brute-force activity.
-    /// </summary>
-    public double FailedLoginWarnRatePerMinute { get; set; } = 5;
-    public double FailedLoginCriticalRatePerMinute { get; set; } = 20;
-
-    /// <summary>
     /// SQL round-trip latency thresholds (milliseconds), measured by timing the
     /// <c>pendingDownloadQueueCount</c> query.
     /// </summary>
