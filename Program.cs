@@ -186,6 +186,10 @@ try
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         db.Database.Migrate();
 
+        // First-boot seed: default FilterRule for Windows service health. Idempotent,
+        // self-gated by a settings flag so deletion by the user is respected.
+        await HealthDefaultRuleSeeder.EnsureCreatedAsync(app.Services);
+
         // Apply installer settings if install-config.json exists
         var installConfigPath = Path.Combine(AppContext.BaseDirectory, "install-config.json");
         if (File.Exists(installConfigPath))
