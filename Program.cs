@@ -157,10 +157,12 @@ try
     {
         builder.Services.AddSingleton<IHealthSource, WindowsServiceHealthSource>();
         builder.Services.AddSingleton<IServiceAccountManager, HirschNotify.Services.Windows.ServiceAccountManager>();
+        builder.Services.AddSingleton<IWindowsServicesInspector, WindowsServicesInspector>();
     }
     else
     {
         builder.Services.AddSingleton<IServiceAccountManager, UnsupportedServiceAccountManager>();
+        builder.Services.AddSingleton<IWindowsServicesInspector, UnsupportedWindowsServicesInspector>();
     }
 
     // Background workers

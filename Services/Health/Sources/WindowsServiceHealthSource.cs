@@ -97,8 +97,10 @@ public sealed class WindowsServiceHealthSource : IHealthSource
     /// <summary>
     /// Layer DB-backed per-instance overrides on top of the appsettings.json
     /// defaults. Keys under <c>Health:WindowsServices:</c> are read via
-    /// ISettingsService. An empty or unset override falls back to the
-    /// default from <see cref="HealthSettings"/>.
+    /// ISettingsService. A missing key falls back to the default from
+    /// <see cref="HealthSettings"/>; an explicitly-stored empty list (key
+    /// present, value blank) means "monitor nothing" so the Health page's
+    /// "uncheck everything" path actually takes effect.
     /// </summary>
     private async Task<WindowsServiceHealthSettings> ResolveEffectiveAsync(
         WindowsServiceHealthSettings defaults)
@@ -116,20 +118,26 @@ public sealed class WindowsServiceHealthSource : IHealthSource
         var dbSettings = scope.ServiceProvider.GetRequiredService<ISettingsService>();
 
         var listOverride = await dbSettings.GetAsync("Health:WindowsServices:MonitoredServices");
-        if (!string.IsNullOrWhiteSpace(listOverride))
+        if (listOverride is not null)
         {
-            var parsed = listOverride
+            effective.MonitoredServices = listOverride
                 .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
                 .Select(s => s.Trim())
                 .Where(s => s.Length > 0)
                 .ToList();
-            if (parsed.Count > 0)
-                effective.MonitoredServices = parsed;
         }
 
         var intervalOverride = await dbSettings.GetAsync("Health:WindowsServices:PollIntervalSeconds");
         if (int.TryParse(intervalOverride, out var interval) && interval > 0)
             effective.PollIntervalSeconds = interval;
+
+        var emitOverride = await dbSettings.GetAsync("Health:WindowsServices:EmitSnapshots");
+        if (bool.TryParse(emitOverride, out var emit))
+            effective.EmitSnapshots = emit;
+
+        var criticalOverride = await dbSettings.GetAsync("Health:WindowsServices:CriticalOnAutomaticStopped");
+        if (bool.TryParse(criticalOverride, out var critical))
+            effective.CriticalOnAutomaticStopped = critical;
 
         return effective;
     }

@@ -1,0 +1,444 @@
+@page
+@model HirschNotify.Pages.Health.IndexModel
+@{
+    ViewData["Title"] = "SRE Health Monitoring";
+    var runningCount = Model.InstalledServices.Count(s => s.Status == "Running");
+    var stoppedCount = Model.InstalledServices.Count(s => s.Status == "Stopped");
+    var automaticCount = Model.InstalledServices.Count(s => s.StartMode == "Automatic");
+}
+
+<style>
+    .health-wrap {
+        max-width: 1100px;
+        margin: 0 auto;
+    }
+    .health-header {
+        margin-bottom: 1.5rem;
+    }
+    .health-header h1 {
+        margin: 0 0 0.35rem 0;
+        font-size: 1.55rem;
+    }
+    .health-header p {
+        margin: 0;
+        color: var(--text-muted, #6b7280);
+        max-width: 70ch;
+    }
+
+    .health-flash {
+        padding: 0.75rem 1rem;
+        border-radius: 6px;
+        margin-bottom: 1rem;
+    }
+    .health-flash.ok { background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; }
+    .health-flash.err { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+
+    .health-banner {
+        padding: 0.75rem 1rem;
+        border-radius: 6px;
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+        color: #78350f;
+        margin-bottom: 1rem;
+        font-size: 0.875rem;
+    }
+
+    .health-card {
+        background: var(--card-bg, #ffffff);
+        border: 1px solid var(--border, #e5e7eb);
+        border-radius: 8px;
+        margin-bottom: 1.25rem;
+        overflow: hidden;
+    }
+    .health-card-header {
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid var(--border, #e5e7eb);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+    .health-card-header h2 {
+        margin: 0;
+        font-size: 1.05rem;
+    }
+    .health-card-header .subtitle {
+        color: var(--text-muted, #6b7280);
+        font-size: 0.85rem;
+        margin-top: 0.15rem;
+    }
+    .health-card-body {
+        padding: 1rem 1.25rem;
+    }
+
+    .monitor-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1rem;
+    }
+    .monitor-grid label {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--text-muted, #6b7280);
+        display: block;
+        margin-bottom: 0.35rem;
+    }
+    .monitor-grid input,
+    .monitor-grid select {
+        width: 100%;
+    }
+    .monitor-grid small {
+        display: block;
+        color: var(--text-muted, #6b7280);
+        font-size: 0.75rem;
+        margin-top: 0.35rem;
+    }
+
+    .picker-toolbar {
+        display: flex;
+        gap: 0.75rem;
+        align-items: center;
+        flex-wrap: wrap;
+        padding: 0.75rem 1.25rem;
+        background: var(--bg-subtle, #f9fafb);
+        border-bottom: 1px solid var(--border, #e5e7eb);
+    }
+    .picker-toolbar .count {
+        font-size: 0.85rem;
+        color: var(--text-muted, #6b7280);
+    }
+    .picker-toolbar .count strong {
+        color: var(--text, #111827);
+    }
+    .picker-search {
+        flex: 1;
+        min-width: 220px;
+    }
+    .picker-search input {
+        width: 100%;
+        padding: 0.5rem 0.75rem;
+    }
+    .filter-chips {
+        display: flex;
+        gap: 0.35rem;
+        flex-wrap: wrap;
+    }
+    .filter-chip {
+        padding: 0.35rem 0.7rem;
+        border-radius: 999px;
+        border: 1px solid var(--border, #d1d5db);
+        background: #fff;
+        cursor: pointer;
+        font-size: 0.8rem;
+        color: var(--text, #374151);
+    }
+    .filter-chip:hover { background: #f3f4f6; }
+    .filter-chip.active {
+        background: var(--accent, #0f766e);
+        color: #fff;
+        border-color: var(--accent, #0f766e);
+    }
+
+    .services-scroll {
+        max-height: 520px;
+        overflow-y: auto;
+    }
+    .services-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.85rem;
+    }
+    .services-table thead th {
+        position: sticky;
+        top: 0;
+        background: #f9fafb;
+        text-align: left;
+        padding: 0.55rem 0.85rem;
+        border-bottom: 1px solid var(--border, #e5e7eb);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        color: var(--text-muted, #6b7280);
+    }
+    .services-table tbody td {
+        padding: 0.6rem 0.85rem;
+        border-bottom: 1px solid #f3f4f6;
+    }
+    .services-table tbody tr:hover { background: #f9fafb; }
+    .services-table tbody tr.selected { background: #ecfeff; }
+    .services-table tbody tr.selected:hover { background: #cffafe; }
+    .services-table .col-check { width: 40px; }
+    .services-table .col-name { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.8rem; }
+    .services-table .col-display { color: var(--text-muted, #6b7280); }
+
+    .svc-status {
+        display: inline-block;
+        padding: 0.15rem 0.5rem;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        font-weight: 600;
+    }
+    .svc-status.running { background: #ecfdf5; color: #047857; }
+    .svc-status.stopped { background: #fef2f2; color: #b91c1c; }
+    .svc-status.pending { background: #fef3c7; color: #92400e; }
+
+    .svc-startmode {
+        display: inline-block;
+        padding: 0.15rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        background: #f3f4f6;
+        color: #4b5563;
+    }
+    .svc-startmode.automatic { background: #dbeafe; color: #1e3a8a; }
+    .svc-startmode.disabled { background: #f3f4f6; color: #9ca3af; text-decoration: line-through; }
+
+    .empty-state {
+        padding: 2.5rem 1.25rem;
+        text-align: center;
+        color: var(--text-muted, #6b7280);
+        font-size: 0.9rem;
+    }
+
+    .patterns-textarea {
+        width: 100%;
+        min-height: 90px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.8rem;
+    }
+
+    .action-bar {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.75rem;
+        padding: 1rem 0;
+    }
+</style>
+
+<div class="health-wrap">
+    <div class="health-header">
+        <h1>SRE Health Monitoring</h1>
+        <p>Watch Windows services for state changes and emit events into the same filter-rule pipeline as Velocity events. Use this to catch stopped databases, failed helper services, and other local infrastructure problems alongside access-control alerts.</p>
+    </div>
+
+    @if (TempData["Success"] is string success)
+    {
+        <div class="health-flash ok">@success</div>
+    }
+    @if (TempData["Error"] is string error)
+    {
+        <div class="health-flash err">@error</div>
+    }
+
+    @if (!Model.IsWindows)
+    {
+        <div class="health-banner">
+            Windows service enumeration is only available on Windows hosts. This page is read-only on the current platform — install HirschNotify on the Velocity server (or a Windows box that can see it) to manage monitored services.
+        </div>
+    }
+    else if (ViewData["InheritingDefaults"] is true)
+    {
+        <div class="health-banner">
+            Currently inheriting the default list from <code>appsettings.json</code>. Pick specific services below and save to create a host-specific override — or leave them all unchecked to explicitly monitor nothing.
+        </div>
+    }
+
+    <form method="post">
+        <div class="health-card">
+            <div class="health-card-header">
+                <div>
+                    <h2>Monitoring</h2>
+                    <div class="subtitle">How often and how loudly the Windows service source reports.</div>
+                </div>
+            </div>
+            <div class="health-card-body">
+                <div class="monitor-grid">
+                    <div>
+                        <label for="pollInterval">Poll interval (seconds)</label>
+                        <input type="number" id="pollInterval" name="pollIntervalSeconds"
+                               value="@Model.PollIntervalSeconds"
+                               min="5"
+                               placeholder="@Model.EffectiveDefaultPollInterval" />
+                        <small>Leave blank to use the default (@Model.EffectiveDefaultPollInterval s).</small>
+                    </div>
+                    <div>
+                        <label for="emitSnapshots">Snapshot events</label>
+                        <select id="emitSnapshots" name="emitSnapshots">
+                            <option value="false" selected="@(Model.EmitSnapshots == false)">Off — emit only on state changes</option>
+                            <option value="true" selected="@(Model.EmitSnapshots == true)">On — emit every poll cycle</option>
+                        </select>
+                        <small>Off is the recommended default. On is useful for debugging the pipeline end-to-end.</small>
+                    </div>
+                    <div>
+                        <label for="criticalOnAutoStopped">Severity escalation</label>
+                        <select id="criticalOnAutoStopped" name="criticalOnAutomaticStopped">
+                            <option value="true" selected="@(Model.CriticalOnAutomaticStopped == true)">Critical when Automatic + Stopped</option>
+                            <option value="false" selected="@(Model.CriticalOnAutomaticStopped == false)">Always Warning</option>
+                        </select>
+                        <small>An Automatic service that's Stopped usually means something failed to start.</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="health-card">
+            <div class="health-card-header">
+                <div>
+                    <h2>Monitored services</h2>
+                    <div class="subtitle">@Model.InstalledServices.Count installed on this host · @runningCount running · @stoppedCount stopped · @automaticCount automatic</div>
+                </div>
+            </div>
+            <div class="picker-toolbar">
+                <div class="count"><strong id="svcSelectedCount">0</strong> selected</div>
+                <div class="picker-search">
+                    <input type="search" id="svcSearch" placeholder="Search by service name or display name…" autocomplete="off" />
+                </div>
+                <div class="filter-chips">
+                    <button type="button" class="filter-chip active" data-filter="all">All</button>
+                    <button type="button" class="filter-chip" data-filter="running">Running</button>
+                    <button type="button" class="filter-chip" data-filter="stopped">Stopped</button>
+                    <button type="button" class="filter-chip" data-filter="automatic">Automatic</button>
+                </div>
+            </div>
+            <div class="services-scroll">
+                @if (Model.InstalledServices.Count == 0)
+                {
+                    <div class="empty-state">
+                        No Windows services could be enumerated. This is usually a permission issue — confirm the service account has rights to query the Service Control Manager.
+                    </div>
+                }
+                else
+                {
+                    <table class="services-table">
+                        <thead>
+                            <tr>
+                                <th class="col-check"></th>
+                                <th class="col-name">Service name</th>
+                                <th class="col-display">Display name</th>
+                                <th>Status</th>
+                                <th>Start</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var svc in Model.InstalledServices)
+                            {
+                                var isChecked = Model.SelectedNames.Contains(svc.Name);
+                                var statusClass = svc.Status switch
+                                {
+                                    "Running" => "running",
+                                    "Stopped" => "stopped",
+                                    _ => "pending"
+                                };
+                                var startModeClass = svc.StartMode.ToLowerInvariant();
+                                <tr class="svc-row @(isChecked ? "selected" : "")"
+                                    data-name="@svc.Name"
+                                    data-display="@svc.DisplayName"
+                                    data-status="@svc.Status"
+                                    data-startmode="@svc.StartMode">
+                                    <td class="col-check">
+                                        <input type="checkbox"
+                                               name="selected"
+                                               value="@svc.Name"
+                                               checked="@isChecked" />
+                                    </td>
+                                    <td class="col-name">@svc.Name</td>
+                                    <td class="col-display">@svc.DisplayName</td>
+                                    <td><span class="svc-status @statusClass">@svc.Status</span></td>
+                                    <td><span class="svc-startmode @startModeClass">@svc.StartMode</span></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        </div>
+
+        <div class="health-card">
+            <div class="health-card-header">
+                <div>
+                    <h2>Custom patterns</h2>
+                    <div class="subtitle">Wildcards (<code>*</code> and <code>?</code>) and names for services that aren't installed on this host yet.</div>
+                </div>
+            </div>
+            <div class="health-card-body">
+                <textarea class="patterns-textarea"
+                          name="customPatterns"
+                          placeholder="MSSQL$*&#10;Exchange*"
+                          spellcheck="false">@Model.CustomPatterns</textarea>
+                <small style="display:block; margin-top:0.5rem; color: var(--text-muted, #6b7280);">
+                    One pattern per line. Used for services you want to track by glob (<code>MSSQL$*</code> for every SQL Server instance) or to preserve entries from another host even when they aren't installed here. Concrete names you've checked above don't need to be repeated here.
+                </small>
+            </div>
+        </div>
+
+        <div class="action-bar">
+            <a href="/Settings" class="btn-secondary">Cancel</a>
+            <button type="submit" class="btn-primary">Save changes</button>
+        </div>
+    </form>
+</div>
+
+<script>
+    (function () {
+        const search = document.getElementById('svcSearch');
+        const chips = document.querySelectorAll('.filter-chip');
+        const rows = document.querySelectorAll('.svc-row');
+        const countEl = document.getElementById('svcSelectedCount');
+        const checkboxes = document.querySelectorAll('input[type=checkbox][name=selected]');
+
+        let query = '';
+        let filter = 'all';
+
+        function applyFilters() {
+            for (const row of rows) {
+                const name = (row.dataset.name || '').toLowerCase();
+                const display = (row.dataset.display || '').toLowerCase();
+                const status = row.dataset.status || '';
+                const startMode = row.dataset.startmode || '';
+
+                const matchesSearch = !query || name.includes(query) || display.includes(query);
+                const matchesFilter =
+                    filter === 'all' ||
+                    (filter === 'running' && status === 'Running') ||
+                    (filter === 'stopped' && status === 'Stopped') ||
+                    (filter === 'automatic' && startMode === 'Automatic');
+
+                row.style.display = (matchesSearch && matchesFilter) ? '' : 'none';
+            }
+        }
+
+        function updateCount() {
+            let selected = 0;
+            for (const cb of checkboxes) if (cb.checked) selected++;
+            countEl.textContent = selected;
+        }
+
+        if (search) {
+            search.addEventListener('input', function (e) {
+                query = (e.target.value || '').trim().toLowerCase();
+                applyFilters();
+            });
+        }
+
+        for (const chip of chips) {
+            chip.addEventListener('click', function () {
+                for (const c of chips) c.classList.remove('active');
+                chip.classList.add('active');
+                filter = chip.dataset.filter;
+                applyFilters();
+            });
+        }
+
+        for (const cb of checkboxes) {
+            cb.addEventListener('change', function () {
+                const row = cb.closest('.svc-row');
+                if (row) row.classList.toggle('selected', cb.checked);
+                updateCount();
+            });
+        }
+
+        updateCount();
+    })();
+</script>
