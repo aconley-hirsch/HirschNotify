@@ -34,8 +34,6 @@ public class IndexModel : PageModel
 
     public string PollIntervalSeconds { get; set; } = "";
 
-    public bool EmitSnapshots { get; set; }
-
     public bool CriticalOnAutomaticStopped { get; set; } = true;
 
     // SDK health thresholds
@@ -89,9 +87,6 @@ public class IndexModel : PageModel
 
         PollIntervalSeconds = await _settings.GetAsync("Health:WindowsServices:PollIntervalSeconds") ?? "";
 
-        var emitRaw = await _settings.GetAsync("Health:WindowsServices:EmitSnapshots");
-        EmitSnapshots = bool.TryParse(emitRaw, out var emit) ? emit : WinDefaults.EmitSnapshots;
-
         var criticalRaw = await _settings.GetAsync("Health:WindowsServices:CriticalOnAutomaticStopped");
         CriticalOnAutomaticStopped = bool.TryParse(criticalRaw, out var critical) ? critical : WinDefaults.CriticalOnAutomaticStopped;
 
@@ -111,7 +106,6 @@ public class IndexModel : PageModel
         List<string>? selected,
         string? customPatterns,
         string? pollIntervalSeconds,
-        bool emitSnapshots,
         bool criticalOnAutomaticStopped,
         string? queueWarnThreshold,
         string? queueCriticalThreshold,
@@ -140,7 +134,6 @@ public class IndexModel : PageModel
         else
             await _settings.SetAsync("Health:WindowsServices:PollIntervalSeconds", "");
 
-        await _settings.SetAsync("Health:WindowsServices:EmitSnapshots", emitSnapshots.ToString().ToLowerInvariant());
         await _settings.SetAsync("Health:WindowsServices:CriticalOnAutomaticStopped", criticalOnAutomaticStopped.ToString().ToLowerInvariant());
 
         // SDK thresholds — save as-is; empty clears the override (C# default kicks in).

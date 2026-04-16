@@ -14,7 +14,6 @@ namespace HirschNotify.Services.Health.Sources;
 /// <list type="bullet">
 /// <item><description><c>queue_threshold</c> — credential download queue crossed a warn/critical threshold</description></item>
 /// <item><description><c>sql_latency</c> — SQL round-trip exceeded a threshold (measured by timing the backlog query)</description></item>
-/// <item><description><c>snapshot</c> — optional periodic gauge dump when <see cref="SdkHealthSettings.EmitSnapshots"/> is on</description></item>
 /// </list>
 /// Threshold events are edge-triggered: they only fire when the metric crosses
 /// the threshold band, not on every poll while over the line. Rearm once the
@@ -108,25 +107,6 @@ public sealed class SdkHealthSource : IHealthSource
 
         await CheckQueueThresholdAsync(emitter, settings, queueCount, cancellationToken);
         await CheckLatencyThresholdAsync(emitter, settings, latencyMs, cancellationToken);
-
-        if (settings.EmitSnapshots)
-        {
-            await emitter.EmitAsync(new HealthEvent
-            {
-                Source = Name,
-                Category = "snapshot",
-                Severity = HealthSeverity.Info,
-                Description = $"SDK snapshot: queue={queueCount}, sqlLatencyMs={latencyMs}",
-                Fields =
-                {
-                    ["queueCount"] = queueCount,
-                    ["sqlLatencyMs"] = latencyMs,
-                    ["velocityRelease"] = SafeGet(() => server.VelocityRelease),
-                    ["serverName"] = SafeGet(() => server.ServerName),
-                    ["database"] = SafeGet(() => server.Database),
-                },
-            }, cancellationToken);
-        }
     }
 
     private async Task CheckQueueThresholdAsync(
@@ -226,9 +206,6 @@ public sealed class SdkHealthSource : IHealthSource
 
         var lc = await db.GetAsync("Health:Sdk:SqlLatencyCriticalMs");
         if (int.TryParse(lc, out var lcVal)) effective.SqlLatencyCriticalMs = lcVal;
-
-        var emit = await db.GetAsync("Health:Sdk:EmitSnapshots");
-        if (bool.TryParse(emit, out var e)) effective.EmitSnapshots = e;
 
         var pi = await db.GetAsync("Health:Sdk:PollIntervalSeconds");
         if (int.TryParse(pi, out var piVal) && piVal > 0) effective.PollIntervalSeconds = piVal;

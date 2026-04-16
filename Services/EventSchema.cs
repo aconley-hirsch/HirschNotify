@@ -115,13 +115,8 @@ public static class EventSchema
             new("currentBand",               "string",  "Threshold band after this transition (Ok, Warning, Critical)"),
             new("warnThreshold",             "number",  "Configured warn threshold for the queue metric"),
             new("criticalThreshold",         "number",  "Configured critical threshold for the queue metric"),
-            new("warnRatePerMinute",         "number",  "Configured warn rate for failed logins"),
-            new("criticalRatePerMinute",     "number",  "Configured critical rate for failed logins"),
             new("warnThresholdMs",           "number",  "Configured warn threshold for SQL latency"),
             new("criticalThresholdMs",       "number",  "Configured critical threshold for SQL latency"),
-            new("velocityRelease",           "string",  "Velocity server release string (snapshot only)"),
-            new("serverName",                "string",  "Connected server name (snapshot only)"),
-            new("database",                  "string",  "Connected database name (snapshot only)"),
         },
     };
 

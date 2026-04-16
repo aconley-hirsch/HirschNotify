@@ -74,7 +74,7 @@
 
     .monitor-grid {
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(2, 1fr);
         gap: 1rem;
     }
     .monitor-grid label {
@@ -262,14 +262,6 @@
                                min="5"
                                placeholder="30" />
                         <small>Leave blank to use the default (30 s).</small>
-                    </div>
-                    <div>
-                        <label for="emitSnapshots">Snapshot events</label>
-                        <select id="emitSnapshots" name="emitSnapshots">
-                            <option value="false" selected="@(Model.EmitSnapshots == false)">Off — emit only on state changes</option>
-                            <option value="true" selected="@(Model.EmitSnapshots == true)">On — emit every poll cycle</option>
-                        </select>
-                        <small>Off is the recommended default. On is useful for debugging the pipeline end-to-end.</small>
                     </div>
                     <div>
                         <label for="criticalOnAutoStopped">Severity escalation</label>

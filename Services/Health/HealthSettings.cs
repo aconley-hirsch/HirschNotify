@@ -43,12 +43,6 @@ public sealed class WindowsServiceHealthSettings
     public int? PollIntervalSeconds { get; set; }
 
     /// <summary>
-    /// Emit a <c>snapshot</c> event every poll cycle in addition to edge-triggered
-    /// state-change events. Off by default to avoid flooding the feed.
-    /// </summary>
-    public bool EmitSnapshots { get; set; } = false;
-
-    /// <summary>
     /// Elevate severity to <see cref="HealthSeverity.Critical"/> when a service whose
     /// start type is Automatic is observed in the Stopped state.
     /// </summary>
@@ -93,8 +87,6 @@ public sealed class SdkHealthSettings
     public bool Enabled { get; set; } = true;
 
     public int? PollIntervalSeconds { get; set; }
-
-    public bool EmitSnapshots { get; set; } = false;
 
     public int QueueWarnThreshold { get; set; } = DefaultQueueWarnThreshold;
     public int QueueCriticalThreshold { get; set; } = DefaultQueueCriticalThreshold;

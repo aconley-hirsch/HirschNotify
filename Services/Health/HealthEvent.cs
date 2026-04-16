@@ -23,7 +23,7 @@ public sealed record HealthEvent
     /// <summary>Logical source name (e.g. "WindowsService", "WindowsEventLog").</summary>
     public required string Source { get; init; }
 
-    /// <summary>Sub-category within the source (e.g. "state_change", "snapshot").</summary>
+    /// <summary>Sub-category within the source (e.g. "state_change", "queue_threshold").</summary>
     public required string Category { get; init; }
 
     public HealthSeverity Severity { get; init; } = HealthSeverity.Info;

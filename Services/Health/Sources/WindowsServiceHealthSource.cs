@@ -6,8 +6,7 @@ namespace HirschNotify.Services.Health.Sources;
 
 /// <summary>
 /// Polls Windows services matching the configured patterns and emits
-/// <see cref="HealthEvent"/>s on state transitions (edge-triggered) and, if
-/// enabled, periodic snapshots.
+/// <see cref="HealthEvent"/>s on state transitions (edge-triggered).
 /// </summary>
 /// <remarks>
 /// Wildcard patterns are resolved against the current service list on every
@@ -109,10 +108,6 @@ public sealed class WindowsServiceHealthSource : IHealthSource
         var interval = await db.GetAsync("Health:WindowsServices:PollIntervalSeconds");
         if (int.TryParse(interval, out var i) && i > 0)
             effective.PollIntervalSeconds = i;
-
-        var emit = await db.GetAsync("Health:WindowsServices:EmitSnapshots");
-        if (bool.TryParse(emit, out var e))
-            effective.EmitSnapshots = e;
 
         var critical = await db.GetAsync("Health:WindowsServices:CriticalOnAutomaticStopped");
         if (bool.TryParse(critical, out var c))
@@ -218,23 +213,6 @@ public sealed class WindowsServiceHealthSource : IHealthSource
             }, cancellationToken);
         }
 
-        if (settings.EmitSnapshots)
-        {
-            await emitter.EmitAsync(new HealthEvent
-            {
-                Source = Name,
-                Category = "snapshot",
-                Severity = ClassifySeverity(current, settings),
-                Description = $"Service {svc.ServiceName} is {status}",
-                Fields =
-                {
-                    ["serviceName"] = svc.ServiceName,
-                    ["displayName"] = displayName,
-                    ["status"] = status.ToString(),
-                    ["startMode"] = startMode.ToString(),
-                },
-            }, cancellationToken);
-        }
     }
 
     private static HealthSeverity ClassifySeverity(ObservedState state, WindowsServiceHealthSettings settings)
