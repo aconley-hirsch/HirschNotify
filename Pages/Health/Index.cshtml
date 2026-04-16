@@ -260,8 +260,8 @@
                         <input type="number" id="pollInterval" name="pollIntervalSeconds"
                                value="@Model.PollIntervalSeconds"
                                min="5"
-                               placeholder="@Model.EffectiveDefaultPollInterval" />
-                        <small>Leave blank to use the default (@Model.EffectiveDefaultPollInterval s).</small>
+                               placeholder="30" />
+                        <small>Leave blank to use the default (30 s).</small>
                     </div>
                     <div>
                         <label for="emitSnapshots">Snapshot events</label>
@@ -352,6 +352,39 @@
                         </tbody>
                     </table>
                 }
+            </div>
+        </div>
+
+        <div class="health-card">
+            <div class="health-card-header">
+                <div>
+                    <h2>SDK Health — Thresholds</h2>
+                    <div class="subtitle">Credential download queue and SQL round-trip latency thresholds. Events fire only when a metric crosses a band (edge-triggered). Leave blank to use the built-in defaults.</div>
+                </div>
+            </div>
+            <div class="health-card-body">
+                <div class="monitor-grid" style="grid-template-columns: repeat(4, 1fr);">
+                    <div>
+                        <label for="queueWarn">Queue warn</label>
+                        <input type="number" id="queueWarn" name="queueWarnThreshold" value="@Model.QueueWarnThreshold" min="1" placeholder="@HirschNotify.Services.Health.SdkHealthSettings.DefaultQueueWarnThreshold" />
+                        <small>Pending credential downloads.</small>
+                    </div>
+                    <div>
+                        <label for="queueCritical">Queue critical</label>
+                        <input type="number" id="queueCritical" name="queueCriticalThreshold" value="@Model.QueueCriticalThreshold" min="1" placeholder="@HirschNotify.Services.Health.SdkHealthSettings.DefaultQueueCriticalThreshold" />
+                        <small>Pending credential downloads.</small>
+                    </div>
+                    <div>
+                        <label for="latencyWarn">Latency warn (ms)</label>
+                        <input type="number" id="latencyWarn" name="sqlLatencyWarnMs" value="@Model.SqlLatencyWarnMs" min="1" placeholder="@HirschNotify.Services.Health.SdkHealthSettings.DefaultSqlLatencyWarnMs" />
+                        <small>SQL round-trip time.</small>
+                    </div>
+                    <div>
+                        <label for="latencyCritical">Latency critical (ms)</label>
+                        <input type="number" id="latencyCritical" name="sqlLatencyCriticalMs" value="@Model.SqlLatencyCriticalMs" min="1" placeholder="@HirschNotify.Services.Health.SdkHealthSettings.DefaultSqlLatencyCriticalMs" />
+                        <small>SQL round-trip time.</small>
+                    </div>
+                </div>
             </div>
         </div>
 

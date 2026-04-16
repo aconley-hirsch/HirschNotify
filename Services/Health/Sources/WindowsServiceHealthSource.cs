@@ -1,11 +1,8 @@
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.ServiceProcess;
-using Microsoft.Extensions.Options;
 
 namespace HirschNotify.Services.Health.Sources;
-
-// ISettingsService lives in the parent namespace HirschNotify.Services.
 
 /// <summary>
 /// Polls Windows services matching the configured patterns and emits
@@ -24,11 +21,8 @@ public sealed class WindowsServiceHealthSource : IHealthSource
 {
     public string Name => "WindowsService";
 
-    public bool IsEnabled =>
-        RuntimeInformation.IsOSPlatform(OSPlatform.Windows) &&
-        _options.CurrentValue.WindowsServices.Enabled;
+    public bool IsEnabled => RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
 
-    private readonly IOptionsMonitor<HealthSettings> _options;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<WindowsServiceHealthSource> _logger;
 
@@ -40,11 +34,9 @@ public sealed class WindowsServiceHealthSource : IHealthSource
         new(StringComparer.OrdinalIgnoreCase);
 
     public WindowsServiceHealthSource(
-        IOptionsMonitor<HealthSettings> options,
         IServiceScopeFactory scopeFactory,
         ILogger<WindowsServiceHealthSource> logger)
     {
-        _options = options;
         _scopeFactory = scopeFactory;
         _logger = logger;
     }
@@ -61,11 +53,7 @@ public sealed class WindowsServiceHealthSource : IHealthSource
 
         while (!cancellationToken.IsCancellationRequested)
         {
-            var settings = _options.CurrentValue;
-            // Layer DB-backed overrides from ISettingsService over the
-            // appsettings.json-bound defaults on every poll so the Settings
-            // page list editor takes effect on the next cycle.
-            var serviceSettings = await ResolveEffectiveAsync(settings.WindowsServices);
+            var serviceSettings = await ResolveEffectiveAsync();
 
             try
             {
@@ -80,7 +68,7 @@ public sealed class WindowsServiceHealthSource : IHealthSource
                 _logger.LogError(ex, "WindowsServiceHealthSource poll failed");
             }
 
-            var intervalSeconds = serviceSettings.PollIntervalSeconds ?? settings.PollIntervalSeconds;
+            var intervalSeconds = serviceSettings.PollIntervalSeconds ?? 30;
             if (intervalSeconds <= 0) intervalSeconds = 30;
 
             try
@@ -95,49 +83,40 @@ public sealed class WindowsServiceHealthSource : IHealthSource
     }
 
     /// <summary>
-    /// Layer DB-backed per-instance overrides on top of the appsettings.json
-    /// defaults. Keys under <c>Health:WindowsServices:</c> are read via
-    /// ISettingsService. A missing key falls back to the default from
-    /// <see cref="HealthSettings"/>; an explicitly-stored empty list (key
-    /// present, value blank) means "monitor nothing" so the Health page's
-    /// "uncheck everything" path actually takes effect.
+    /// Read all WindowsServices settings from the DB. A missing key falls
+    /// back to the C# default on <see cref="WindowsServiceHealthSettings"/>;
+    /// an explicitly-stored empty list (key present, value blank) means
+    /// "monitor nothing" so the Health page's "uncheck everything" path
+    /// actually takes effect.
     /// </summary>
-    private async Task<WindowsServiceHealthSettings> ResolveEffectiveAsync(
-        WindowsServiceHealthSettings defaults)
+    private async Task<WindowsServiceHealthSettings> ResolveEffectiveAsync()
     {
-        var effective = new WindowsServiceHealthSettings
-        {
-            Enabled = defaults.Enabled,
-            MonitoredServices = new List<string>(defaults.MonitoredServices),
-            PollIntervalSeconds = defaults.PollIntervalSeconds,
-            EmitSnapshots = defaults.EmitSnapshots,
-            CriticalOnAutomaticStopped = defaults.CriticalOnAutomaticStopped,
-        };
+        var effective = new WindowsServiceHealthSettings();
 
         using var scope = _scopeFactory.CreateScope();
-        var dbSettings = scope.ServiceProvider.GetRequiredService<ISettingsService>();
+        var db = scope.ServiceProvider.GetRequiredService<ISettingsService>();
 
-        var listOverride = await dbSettings.GetAsync("Health:WindowsServices:MonitoredServices");
-        if (listOverride is not null)
+        var list = await db.GetAsync("Health:WindowsServices:MonitoredServices");
+        if (list is not null)
         {
-            effective.MonitoredServices = listOverride
+            effective.MonitoredServices = list
                 .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
                 .Select(s => s.Trim())
                 .Where(s => s.Length > 0)
                 .ToList();
         }
 
-        var intervalOverride = await dbSettings.GetAsync("Health:WindowsServices:PollIntervalSeconds");
-        if (int.TryParse(intervalOverride, out var interval) && interval > 0)
-            effective.PollIntervalSeconds = interval;
+        var interval = await db.GetAsync("Health:WindowsServices:PollIntervalSeconds");
+        if (int.TryParse(interval, out var i) && i > 0)
+            effective.PollIntervalSeconds = i;
 
-        var emitOverride = await dbSettings.GetAsync("Health:WindowsServices:EmitSnapshots");
-        if (bool.TryParse(emitOverride, out var emit))
-            effective.EmitSnapshots = emit;
+        var emit = await db.GetAsync("Health:WindowsServices:EmitSnapshots");
+        if (bool.TryParse(emit, out var e))
+            effective.EmitSnapshots = e;
 
-        var criticalOverride = await dbSettings.GetAsync("Health:WindowsServices:CriticalOnAutomaticStopped");
-        if (bool.TryParse(criticalOverride, out var critical))
-            effective.CriticalOnAutomaticStopped = critical;
+        var critical = await db.GetAsync("Health:WindowsServices:CriticalOnAutomaticStopped");
+        if (bool.TryParse(critical, out var c))
+            effective.CriticalOnAutomaticStopped = c;
 
         return effective;
     }

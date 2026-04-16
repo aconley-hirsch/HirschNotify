@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using Microsoft.Extensions.Options;
 using VelocityAdapter;
 
 namespace HirschNotify.Services.Health.Sources;
@@ -25,10 +24,10 @@ public sealed class SdkHealthSource : IHealthSource
 {
     public string Name => "SdkHealth";
 
-    public bool IsEnabled => _options.CurrentValue.Sdk.Enabled;
+    public bool IsEnabled => true;
 
     private readonly IVelocityServerAccessor _serverAccessor;
-    private readonly IOptionsMonitor<HealthSettings> _options;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<SdkHealthSource> _logger;
 
     private Band _queueBand = Band.Ok;
@@ -36,11 +35,11 @@ public sealed class SdkHealthSource : IHealthSource
 
     public SdkHealthSource(
         IVelocityServerAccessor serverAccessor,
-        IOptionsMonitor<HealthSettings> options,
+        IServiceScopeFactory scopeFactory,
         ILogger<SdkHealthSource> logger)
     {
         _serverAccessor = serverAccessor;
-        _options = options;
+        _scopeFactory = scopeFactory;
         _logger = logger;
     }
 
@@ -50,15 +49,11 @@ public sealed class SdkHealthSource : IHealthSource
 
         while (!cancellationToken.IsCancellationRequested)
         {
-            var settings = _options.CurrentValue;
-            var sdkSettings = settings.Sdk;
+            var sdkSettings = await ResolveEffectiveAsync();
 
             var server = _serverAccessor.Current;
             if (server is null || !server.IsConnected)
             {
-                // VelocityAdapter isn't connected yet (or has dropped). Don't
-                // emit noise; just wait for it. Existing connection events are
-                // already published by VelocityAdapterWorker.
                 _logger.LogDebug("SdkHealthSource idle — no live VelocityServer");
             }
             else
@@ -73,13 +68,11 @@ public sealed class SdkHealthSource : IHealthSource
                 }
                 catch (Exception ex)
                 {
-                    // Any SDK call can throw if the underlying SQL pool blipped;
-                    // log and continue — the next poll will retry.
                     _logger.LogWarning(ex, "SdkHealthSource poll failed");
                 }
             }
 
-            var intervalSeconds = sdkSettings.PollIntervalSeconds ?? settings.PollIntervalSeconds;
+            var intervalSeconds = sdkSettings.PollIntervalSeconds ?? 30;
             if (intervalSeconds <= 0) intervalSeconds = 30;
 
             try
@@ -215,6 +208,34 @@ public sealed class SdkHealthSource : IHealthSource
     /// only emit on transitions, so a metric hovering at the threshold emits
     /// once on the way up and once on the way down, not every poll.
     /// </summary>
+    private async Task<SdkHealthSettings> ResolveEffectiveAsync()
+    {
+        var effective = new SdkHealthSettings();
+
+        using var scope = _scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISettingsService>();
+
+        var qw = await db.GetAsync("Health:Sdk:QueueWarnThreshold");
+        if (int.TryParse(qw, out var qwVal)) effective.QueueWarnThreshold = qwVal;
+
+        var qc = await db.GetAsync("Health:Sdk:QueueCriticalThreshold");
+        if (int.TryParse(qc, out var qcVal)) effective.QueueCriticalThreshold = qcVal;
+
+        var lw = await db.GetAsync("Health:Sdk:SqlLatencyWarnMs");
+        if (int.TryParse(lw, out var lwVal)) effective.SqlLatencyWarnMs = lwVal;
+
+        var lc = await db.GetAsync("Health:Sdk:SqlLatencyCriticalMs");
+        if (int.TryParse(lc, out var lcVal)) effective.SqlLatencyCriticalMs = lcVal;
+
+        var emit = await db.GetAsync("Health:Sdk:EmitSnapshots");
+        if (bool.TryParse(emit, out var e)) effective.EmitSnapshots = e;
+
+        var pi = await db.GetAsync("Health:Sdk:PollIntervalSeconds");
+        if (int.TryParse(pi, out var piVal) && piVal > 0) effective.PollIntervalSeconds = piVal;
+
+        return effective;
+    }
+
     private static Band ClassifyBand(double value, double warnThreshold, double criticalThreshold)
     {
         if (value >= criticalThreshold) return Band.Critical;

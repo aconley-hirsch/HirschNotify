@@ -85,28 +85,20 @@ public sealed class WindowsEventLogSubscription
 /// </summary>
 public sealed class SdkHealthSettings
 {
+    public const int DefaultQueueWarnThreshold = 100;
+    public const int DefaultQueueCriticalThreshold = 500;
+    public const int DefaultSqlLatencyWarnMs = 500;
+    public const int DefaultSqlLatencyCriticalMs = 2000;
+
     public bool Enabled { get; set; } = true;
 
-    /// <summary>Override <see cref="HealthSettings.PollIntervalSeconds"/> for this source.</summary>
     public int? PollIntervalSeconds { get; set; }
 
-    /// <summary>
-    /// Emit a <c>snapshot</c> event every poll cycle in addition to threshold-crossing
-    /// events. Off by default — snapshots are better consumed as gauges.
-    /// </summary>
     public bool EmitSnapshots { get; set; } = false;
 
-    /// <summary>
-    /// Credential download backlog thresholds. A rising queue means the host service
-    /// is behind or a controller is unreachable.
-    /// </summary>
-    public int QueueWarnThreshold { get; set; } = 100;
-    public int QueueCriticalThreshold { get; set; } = 500;
+    public int QueueWarnThreshold { get; set; } = DefaultQueueWarnThreshold;
+    public int QueueCriticalThreshold { get; set; } = DefaultQueueCriticalThreshold;
 
-    /// <summary>
-    /// SQL round-trip latency thresholds (milliseconds), measured by timing the
-    /// <c>pendingDownloadQueueCount</c> query.
-    /// </summary>
-    public int SqlLatencyWarnMs { get; set; } = 500;
-    public int SqlLatencyCriticalMs { get; set; } = 2000;
+    public int SqlLatencyWarnMs { get; set; } = DefaultSqlLatencyWarnMs;
+    public int SqlLatencyCriticalMs { get; set; } = DefaultSqlLatencyCriticalMs;
 }

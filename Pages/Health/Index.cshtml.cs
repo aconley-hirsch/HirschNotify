@@ -3,25 +3,22 @@ using HirschNotify.Services.Health;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.Extensions.Options;
 
 namespace HirschNotify.Pages.Health;
 
 [Authorize]
 public class IndexModel : PageModel
 {
+    private static readonly WindowsServiceHealthSettings WinDefaults = new();
+    private static readonly SdkHealthSettings SdkDefaults = new();
+
     private readonly ISettingsService _settings;
     private readonly IWindowsServicesInspector _inspector;
-    private readonly IOptionsMonitor<HirschNotify.Services.Health.HealthSettings> _options;
 
-    public IndexModel(
-        ISettingsService settings,
-        IWindowsServicesInspector inspector,
-        IOptionsMonitor<HirschNotify.Services.Health.HealthSettings> options)
+    public IndexModel(ISettingsService settings, IWindowsServicesInspector inspector)
     {
         _settings = settings;
         _inspector = inspector;
-        _options = options;
     }
 
     public bool IsWindows => _inspector.IsSupported;
@@ -41,14 +38,11 @@ public class IndexModel : PageModel
 
     public bool CriticalOnAutomaticStopped { get; set; } = true;
 
-    public int EffectiveDefaultPollInterval
-    {
-        get
-        {
-            var ws = _options.CurrentValue.WindowsServices;
-            return ws.PollIntervalSeconds ?? _options.CurrentValue.PollIntervalSeconds;
-        }
-    }
+    // SDK health thresholds
+    public string QueueWarnThreshold { get; set; } = "";
+    public string QueueCriticalThreshold { get; set; } = "";
+    public string SqlLatencyWarnMs { get; set; } = "";
+    public string SqlLatencyCriticalMs { get; set; } = "";
 
     public async Task<IActionResult> OnGetAsync()
     {
@@ -66,9 +60,7 @@ public class IndexModel : PageModel
         bool inheritingDefaults;
         if (stored is null)
         {
-            // No override saved yet — pre-populate from appsettings.json defaults
-            // so first-time visitors see the built-in list, not an empty picker.
-            entries = _options.CurrentValue.WindowsServices.MonitoredServices;
+            entries = WinDefaults.MonitoredServices;
             inheritingDefaults = true;
         }
         else
@@ -98,14 +90,16 @@ public class IndexModel : PageModel
         PollIntervalSeconds = await _settings.GetAsync("Health:WindowsServices:PollIntervalSeconds") ?? "";
 
         var emitRaw = await _settings.GetAsync("Health:WindowsServices:EmitSnapshots");
-        EmitSnapshots = bool.TryParse(emitRaw, out var emit)
-            ? emit
-            : _options.CurrentValue.WindowsServices.EmitSnapshots;
+        EmitSnapshots = bool.TryParse(emitRaw, out var emit) ? emit : WinDefaults.EmitSnapshots;
 
         var criticalRaw = await _settings.GetAsync("Health:WindowsServices:CriticalOnAutomaticStopped");
-        CriticalOnAutomaticStopped = bool.TryParse(criticalRaw, out var critical)
-            ? critical
-            : _options.CurrentValue.WindowsServices.CriticalOnAutomaticStopped;
+        CriticalOnAutomaticStopped = bool.TryParse(criticalRaw, out var critical) ? critical : WinDefaults.CriticalOnAutomaticStopped;
+
+        // SDK thresholds
+        QueueWarnThreshold = await _settings.GetAsync("Health:Sdk:QueueWarnThreshold") ?? "";
+        QueueCriticalThreshold = await _settings.GetAsync("Health:Sdk:QueueCriticalThreshold") ?? "";
+        SqlLatencyWarnMs = await _settings.GetAsync("Health:Sdk:SqlLatencyWarnMs") ?? "";
+        SqlLatencyCriticalMs = await _settings.GetAsync("Health:Sdk:SqlLatencyCriticalMs") ?? "";
 
         if (inheritingDefaults)
             ViewData["InheritingDefaults"] = true;
@@ -118,7 +112,11 @@ public class IndexModel : PageModel
         string? customPatterns,
         string? pollIntervalSeconds,
         bool emitSnapshots,
-        bool criticalOnAutomaticStopped)
+        bool criticalOnAutomaticStopped,
+        string? queueWarnThreshold,
+        string? queueCriticalThreshold,
+        string? sqlLatencyWarnMs,
+        string? sqlLatencyCriticalMs)
     {
         var concrete = (selected ?? new List<string>())
             .Where(s => !string.IsNullOrWhiteSpace(s))
@@ -144,6 +142,12 @@ public class IndexModel : PageModel
 
         await _settings.SetAsync("Health:WindowsServices:EmitSnapshots", emitSnapshots.ToString().ToLowerInvariant());
         await _settings.SetAsync("Health:WindowsServices:CriticalOnAutomaticStopped", criticalOnAutomaticStopped.ToString().ToLowerInvariant());
+
+        // SDK thresholds — save as-is; empty clears the override (C# default kicks in).
+        await _settings.SetAsync("Health:Sdk:QueueWarnThreshold", queueWarnThreshold?.Trim() ?? "");
+        await _settings.SetAsync("Health:Sdk:QueueCriticalThreshold", queueCriticalThreshold?.Trim() ?? "");
+        await _settings.SetAsync("Health:Sdk:SqlLatencyWarnMs", sqlLatencyWarnMs?.Trim() ?? "");
+        await _settings.SetAsync("Health:Sdk:SqlLatencyCriticalMs", sqlLatencyCriticalMs?.Trim() ?? "");
 
         TempData["Success"] = "Health monitoring settings saved. Changes take effect on the next poll cycle.";
         return RedirectToPage();

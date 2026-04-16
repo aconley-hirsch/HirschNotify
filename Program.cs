@@ -149,8 +149,9 @@ try
     // Health framework — SRE-facing Velocity health metrics pipeline.
     // IHealthSource implementations are registered as singletons so the worker
     // can enumerate them via DI; add new sources (event log, etc.) here.
-    builder.Services.Configure<HealthSettings>(
-        builder.Configuration.GetSection(HealthSettings.SectionName));
+    // Settings (thresholds, monitored services, poll intervals) are stored in the
+    // DB via ISettingsService, not in appsettings.json — each source reads them
+    // per poll via ResolveEffectiveAsync with C# defaults as fallback.
     builder.Services.AddSingleton<IHealthEventEmitter, HealthEventEmitter>();
     builder.Services.AddSingleton<IHealthSource, SdkHealthSource>();
     if (OperatingSystem.IsWindows())
