@@ -5,6 +5,8 @@ using Microsoft.Extensions.Options;
 
 namespace HirschNotify.Services.Health.Sources;
 
+// ISettingsService lives in the parent namespace HirschNotify.Services.
+
 /// <summary>
 /// Polls Windows services matching the configured patterns and emits
 /// <see cref="HealthEvent"/>s on state transitions (edge-triggered) and, if
@@ -27,6 +29,7 @@ public sealed class WindowsServiceHealthSource : IHealthSource
         _options.CurrentValue.WindowsServices.Enabled;
 
     private readonly IOptionsMonitor<HealthSettings> _options;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<WindowsServiceHealthSource> _logger;
 
     /// <summary>
@@ -38,9 +41,11 @@ public sealed class WindowsServiceHealthSource : IHealthSource
 
     public WindowsServiceHealthSource(
         IOptionsMonitor<HealthSettings> options,
+        IServiceScopeFactory scopeFactory,
         ILogger<WindowsServiceHealthSource> logger)
     {
         _options = options;
+        _scopeFactory = scopeFactory;
         _logger = logger;
     }
 
@@ -52,13 +57,15 @@ public sealed class WindowsServiceHealthSource : IHealthSource
             return;
         }
 
-        _logger.LogInformation("WindowsServiceHealthSource starting with patterns: {Patterns}",
-            string.Join(", ", _options.CurrentValue.WindowsServices.MonitoredServices));
+        _logger.LogInformation("WindowsServiceHealthSource starting");
 
         while (!cancellationToken.IsCancellationRequested)
         {
             var settings = _options.CurrentValue;
-            var serviceSettings = settings.WindowsServices;
+            // Layer DB-backed overrides from ISettingsService over the
+            // appsettings.json-bound defaults on every poll so the Settings
+            // page list editor takes effect on the next cycle.
+            var serviceSettings = await ResolveEffectiveAsync(settings.WindowsServices);
 
             try
             {
@@ -85,6 +92,46 @@ public sealed class WindowsServiceHealthSource : IHealthSource
                 break;
             }
         }
+    }
+
+    /// <summary>
+    /// Layer DB-backed per-instance overrides on top of the appsettings.json
+    /// defaults. Keys under <c>Health:WindowsServices:</c> are read via
+    /// ISettingsService. An empty or unset override falls back to the
+    /// default from <see cref="HealthSettings"/>.
+    /// </summary>
+    private async Task<WindowsServiceHealthSettings> ResolveEffectiveAsync(
+        WindowsServiceHealthSettings defaults)
+    {
+        var effective = new WindowsServiceHealthSettings
+        {
+            Enabled = defaults.Enabled,
+            MonitoredServices = new List<string>(defaults.MonitoredServices),
+            PollIntervalSeconds = defaults.PollIntervalSeconds,
+            EmitSnapshots = defaults.EmitSnapshots,
+            CriticalOnAutomaticStopped = defaults.CriticalOnAutomaticStopped,
+        };
+
+        using var scope = _scopeFactory.CreateScope();
+        var dbSettings = scope.ServiceProvider.GetRequiredService<ISettingsService>();
+
+        var listOverride = await dbSettings.GetAsync("Health:WindowsServices:MonitoredServices");
+        if (!string.IsNullOrWhiteSpace(listOverride))
+        {
+            var parsed = listOverride
+                .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(s => s.Trim())
+                .Where(s => s.Length > 0)
+                .ToList();
+            if (parsed.Count > 0)
+                effective.MonitoredServices = parsed;
+        }
+
+        var intervalOverride = await dbSettings.GetAsync("Health:WindowsServices:PollIntervalSeconds");
+        if (int.TryParse(intervalOverride, out var interval) && interval > 0)
+            effective.PollIntervalSeconds = interval;
+
+        return effective;
     }
 
     private async Task PollOnceAsync(

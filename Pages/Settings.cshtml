@@ -461,6 +461,30 @@
                 </div>
             </section>
 
+            <!-- SRE Health -->
+            <section id="health" class="settings-section" style="@(isVelocity ? "" : "display:none")">
+                <div class="settings-section-header">
+                    <h2>SRE Health Monitoring</h2>
+                    <p>Optional health probes that emit events into the same pipeline as Velocity events, so SRE alerts flow through your existing filter rules. Only relevant when this service is installed on or near the Velocity server.</p>
+                </div>
+                <div class="settings-card">
+                    <div class="settings-card-body">
+                        <div class="field-grid">
+                            <div class="field col-12">
+                                <label for="healthWinServices">Monitored Windows Services</label>
+                                <textarea id="healthWinServices" name="Settings[Health:WindowsServices:MonitoredServices]" rows="8" spellcheck="false">@Model.Get("Health:WindowsServices:MonitoredServices")</textarea>
+                                <small>One Windows service name per line. Wildcards <code>*</code> and <code>?</code> are supported — e.g. <code>MSSQL$*</code> matches every SQL Server instance. Leave blank to use the built-in default list (<code>ExServer</code>, <code>DTServer</code>, <code>MSSQL$*</code>, <code>SDServer</code>, <code>VWSX</code>). Changes take effect on the next poll cycle.</small>
+                            </div>
+                            <div class="field col-4">
+                                <label for="healthWinServicesInterval">Poll Interval (sec)</label>
+                                <input type="number" id="healthWinServicesInterval" name="Settings[Health:WindowsServices:PollIntervalSeconds]" value="@Model.Get("Health:WindowsServices:PollIntervalSeconds")" min="5" placeholder="30" />
+                                <small>How often the service list is polled. Leave blank to use the framework default of 30 seconds.</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             <!-- WebSocket -->
             <section id="websocket" class="settings-section" style="@(isVelocity ? "display:none" : "")">
                 <div class="settings-section-header">
