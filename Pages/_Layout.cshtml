@@ -14,7 +14,7 @@
 @{
     // TempData["Restarting"] is set by handlers that kick off a service
     // restart (service account change, in-app updater). The inline script
-    // below polls /health every 2s when this flag is set and reloads the
+    // below polls /healthz every 2s when this flag is set and reloads the
     // page on the first successful response.
     var restartingAttr = TempData["Restarting"] is true ? "true" : null;
 
@@ -141,7 +141,7 @@
     <script>
         // Reconnect-after-restart poller. Activates when a handler sets
         // TempData["Restarting"] = true (service account change, auto-update
-        // reinstall). Polls /health every 2s, reloads on first 200 response.
+        // reinstall). Polls /healthz every 2s, reloads on first 200 response.
         (function () {
             if (document.body.dataset.restarting !== 'true') return;
 
@@ -153,7 +153,7 @@
             var attempts = 0;
             function poll() {
                 attempts++;
-                fetch('/health', { cache: 'no-store' })
+                fetch('/healthz', { cache: 'no-store' })
                     .then(function (r) {
                         if (r.ok) { window.location.reload(); return; }
                         setTimeout(poll, 2000);

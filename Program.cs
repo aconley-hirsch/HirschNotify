@@ -224,8 +224,10 @@ try
     // Unauthenticated liveness probe. Used by the _Layout reconnect script
     // to detect when the service is back up after a service-account change
     // or auto-update reinstall — at that point the admin's browser session
-    // is gone, so this endpoint can't require auth.
-    app.MapGet("/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
+    // is gone, so this endpoint can't require auth. Named /healthz so it
+    // doesn't collide with the /Health Razor page (ASP.NET routes are
+    // case-insensitive, so /health and /Health match the same slot).
+    app.MapGet("/healthz", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
 
     // Per-version dismissal for the update banner. Called by the inline
     // fetch() in _Layout.cshtml. Stores the dismissed version server-side
