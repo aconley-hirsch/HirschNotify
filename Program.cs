@@ -6,12 +6,20 @@ using HirschNotify.Services.Health.Sources;
 using HirschNotify.Workers;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 
+// Create the data root + Logs dir before the bootstrap logger opens its
+// file sink, so the very first write lands at %ProgramData%\HirschNotify
+// \Logs (on Windows) rather than failing and leaving early-startup
+// errors invisible.
+Directory.CreateDirectory(AppPaths.LogsDir);
+var logFilePath = Path.Combine(AppPaths.LogsDir, "HirschNotify-.log");
+
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
-    .WriteTo.File("Logs/HirschNotify-.log", rollingInterval: RollingInterval.Day)
+    .WriteTo.File(logFilePath, rollingInterval: RollingInterval.Day)
     .CreateBootstrapLogger();
 
 try
@@ -25,16 +33,28 @@ try
         .ReadFrom.Configuration(context.Configuration)
         .ReadFrom.Services(services)
         .WriteTo.Console()
-        .WriteTo.File("Logs/HirschNotify-.log", rollingInterval: RollingInterval.Day));
+        .WriteTo.File(logFilePath, rollingInterval: RollingInterval.Day));
 
-    // Database — use SQLite if configured, otherwise MSSQL
+    // Database — use SQLite if configured, otherwise MSSQL. For SQLite with a
+    // relative Data Source, rewrite the path to sit under AppPaths.DataRoot so
+    // the file lands at %ProgramData%\HirschNotify\HirschNotify.db instead of
+    // wherever SCM happened to set the service's working directory (which on
+    // stock Windows is %SystemRoot%\System32).
     var dbProvider = builder.Configuration.GetValue<string>("DatabaseProvider") ?? "SqlServer";
     builder.Services.AddDbContext<AppDbContext>(options =>
     {
         if (dbProvider == "Sqlite")
-            options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection"));
+        {
+            var connStr = builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=HirschNotify.db";
+            var csb = new SqliteConnectionStringBuilder(connStr);
+            if (!Path.IsPathRooted(csb.DataSource))
+                csb.DataSource = Path.Combine(AppPaths.DataRoot, csb.DataSource);
+            options.UseSqlite(csb.ConnectionString);
+        }
         else
+        {
             options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"));
+        }
     });
 
     // Identity
@@ -56,11 +76,12 @@ try
         options.SlidingExpiration = true;
     });
 
-    // Data protection — keys persisted under the install directory and wrapped
-    // with LocalMachine DPAPI so encrypted settings survive service account
-    // changes. Without this, the default per-user DPAPI scope would destroy
+    // Data protection — keys persisted under the data root (%ProgramData%
+    // \HirschNotify\Keys on Windows) and wrapped with LocalMachine DPAPI so
+    // encrypted settings survive service account changes. Without the
+    // LocalMachine scope, the default per-user DPAPI scope would destroy
     // every stored secret the moment an admin swaps the service account.
-    var keysDir = new DirectoryInfo(Path.Combine(AppContext.BaseDirectory, "Keys"));
+    var keysDir = new DirectoryInfo(AppPaths.KeysDir);
     if (!keysDir.Exists) keysDir.Create();
     var dataProtection = builder.Services.AddDataProtection()
         .SetApplicationName("HirschNotify")

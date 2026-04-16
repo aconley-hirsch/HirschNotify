@@ -5,6 +5,7 @@ using System.Runtime.Versioning;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Text;
+using HirschNotify.Services;
 using static HirschNotify.Services.Windows.ServiceAccountPInvoke;
 
 namespace HirschNotify.Services.Windows;
@@ -150,13 +151,14 @@ public sealed class ServiceAccountManager : IServiceAccountManager
         var installDir = AppContext.BaseDirectory;
         var identity = new NTAccount(accountName);
 
+        // Install dir holds only code now — read + execute is enough.
         Grant(installDir, identity, FileSystemRights.ReadAndExecute);
-        foreach (var sub in new[] { "Logs", "Data", "Keys" })
-        {
-            var path = Path.Combine(installDir, sub);
-            if (Directory.Exists(path))
-                Grant(path, identity, FileSystemRights.Modify);
-        }
+
+        // Everything mutable (DB, Logs, Keys) lives under the data root.
+        // A single Modify grant with the inheritance flags set in Grant()
+        // propagates to all current and future children.
+        if (Directory.Exists(AppPaths.DataRoot))
+            Grant(AppPaths.DataRoot, identity, FileSystemRights.Modify);
     }
 
     private void Grant(string path, NTAccount identity, FileSystemRights rights)

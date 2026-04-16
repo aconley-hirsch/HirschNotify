@@ -39,9 +39,14 @@ UninstallDisplayIcon={app}\HirschNotify.exe
 Source: "..\bin\Release\net10.0\win-x64\publish\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
 
 [Dirs]
-Name: "{app}\Logs"; Permissions: users-modify
-Name: "{app}\Data"; Permissions: users-modify
-Name: "{app}\Keys"; Permissions: users-modify
+; Runtime state (SQLite DB, Serilog files, DPAPI keys) lives under
+; %ProgramData%\HirschNotify, not under {app}. The inherited ACL from
+; %ProgramData% already gives SYSTEM full control, which is what the
+; service runs as by default. Custom service accounts pick up Modify
+; at runtime via Services/Windows/ServiceAccountManager.GrantInstallDirAcls.
+Name: "{commonappdata}\HirschNotify"
+Name: "{commonappdata}\HirschNotify\Logs"
+Name: "{commonappdata}\HirschNotify\Keys"
 
 [Run]
 ; Service registration (create + description + failure actions + start) runs
