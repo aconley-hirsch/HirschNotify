@@ -20,17 +20,20 @@ public sealed class VelocitySreHealthWorker : BackgroundService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IEnumerable<IHealthSource> _sources;
     private readonly IHealthEventEmitter _emitter;
+    private readonly EventSourceModeSignal _modeSignal;
     private readonly ILogger<VelocitySreHealthWorker> _logger;
 
     public VelocitySreHealthWorker(
         IServiceScopeFactory scopeFactory,
         IEnumerable<IHealthSource> sources,
         IHealthEventEmitter emitter,
+        EventSourceModeSignal modeSignal,
         ILogger<VelocitySreHealthWorker> logger)
     {
         _scopeFactory = scopeFactory;
         _sources = sources;
         _emitter = emitter;
+        _modeSignal = modeSignal;
         _logger = logger;
     }
 
@@ -41,13 +44,6 @@ public sealed class VelocitySreHealthWorker : BackgroundService
             // Give the host a moment to finish wiring (matches VelocityAdapterWorker).
             await Task.Delay(2000, stoppingToken);
 
-            if (!await IsVelocityAdapterModeAsync(stoppingToken))
-            {
-                _logger.LogInformation(
-                    "Event source is not VelocityAdapter — SRE health worker disabled");
-                return;
-            }
-
             var activeSources = _sources.Where(s => s.IsEnabled).ToList();
             if (activeSources.Count == 0)
             {
@@ -55,19 +51,56 @@ public sealed class VelocitySreHealthWorker : BackgroundService
                 return;
             }
 
-            _logger.LogInformation(
-                "VelocitySreHealthWorker starting with sources: {Sources}",
-                string.Join(", ", activeSources.Select(s => s.Name)));
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                // Re-check mode on every pass so flipping EventSource:Mode
+                // in Settings wakes the worker without a service restart.
+                if (!await IsVelocityAdapterModeAsync(stoppingToken))
+                {
+                    await WaitForModeChangeOrStopAsync(stoppingToken);
+                    continue;
+                }
 
-            var runners = activeSources
-                .Select(source => RunSourceAsync(source, stoppingToken))
-                .ToArray();
+                _logger.LogInformation(
+                    "VelocitySreHealthWorker starting with sources: {Sources}",
+                    string.Join(", ", activeSources.Select(s => s.Name)));
 
-            await Task.WhenAll(runners);
+                // Linking to _modeSignal.Token means a mode flip back to
+                // WebSocket cancels every RunSourceAsync loop at once — the
+                // Task.WhenAll then completes and we fall through to the top
+                // of the outer loop to idle on the next signal.
+                using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
+                    stoppingToken, _modeSignal.Token);
+
+                var runners = activeSources
+                    .Select(source => RunSourceAsync(source, linkedCts.Token))
+                    .ToArray();
+
+                await Task.WhenAll(runners);
+
+                if (stoppingToken.IsCancellationRequested) break;
+
+                _logger.LogInformation("EventSource mode change — SRE health worker yielding");
+            }
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
             // Normal shutdown.
+        }
+    }
+
+    // Sleep until either the service shuts down or SettingsModel bumps
+    // the mode signal. Returning re-enters the outer loop, which re-reads
+    // EventSource:Mode and decides whether this worker is now active.
+    private async Task WaitForModeChangeOrStopAsync(CancellationToken stoppingToken)
+    {
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken, _modeSignal.Token);
+        try
+        {
+            await Task.Delay(Timeout.Infinite, linked.Token);
+        }
+        catch (OperationCanceledException)
+        {
         }
     }
 
